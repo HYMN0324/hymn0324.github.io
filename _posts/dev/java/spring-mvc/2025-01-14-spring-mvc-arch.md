@@ -10,7 +10,7 @@ permalink: springmvc/arch
 > ![SpringMVC 구조](/assets/img/posts/dev/java/spring-mvc/springmvc-arch1.png "SpringMVC 구조")
 
 ### 동작순서
-1. __Handler 조회__ : 요청 URL에 맞는 Handler(Controller) 조회
+1. __Handler Mapping 조회__ : 요청 URL에 맞는 Handler(Controller) 조회
 2. __Handler Adapter 조회__ : 해당 Handler 실행 가능한 Adapter 조회
 3. __Handler Adapter 실행__ : Adapter가 있으면 Handler를 argument로 전달하며 Adapter 실행
 4. __Handler 실행__ : 실질적인 Handler(Controller) 실행
@@ -25,3 +25,17 @@ permalink: springmvc/arch
 3. Front Controller로 __단일 진입으로 처리__ 하여 인터셉터(인증, 예외 처리)와 같은 공통 처리를 할 수 있어 일관되게 관리할 수 있기 때문.(유지보수 용이)
 
 결론적으로 대규모 애플리케이션 개발과 유지보수를 최대한 단순화 하기 위해 Front Controller 구조를 사용한다.
+
+### @Controller, @RequestMapping을 사용하면 어떻게 동작이 되는걸까?
+Spring은 Handler Mapping과 Handler Adapter 기능을 구현한 우선순위 기준으로 찾는다.
+
+스프링이 자동 등록하는 HandlerMapping 우선 순위
+0. __RequestMappingHandlerMapping__ : @Controller/@RequestMapping 지정된 클래스
+1. BeanNameUrl HandlerMapping : Spring Bean이름으로 Handler를 찾는다.
+
+스프링이 자동 등록하는 HandlerAdapter 우선 순위
+0. __ReqeustMappingHandlerAdapter__ : @RequestMapping을 사용한 컨트롤러
+1. HttpReqeust HandlerAdapter : HttpRequestHandler 처리
+2. SimpleController HandlerAdapter : Controller 인터페이스 처리(@Controller X, 과거에 사용)
+
+현재 Spring은 99% RequestMapping HandlerMapping/HandlerAdapter로 사용한다.
