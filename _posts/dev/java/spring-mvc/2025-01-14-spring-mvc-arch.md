@@ -1,8 +1,9 @@
 ---
 title: SpringMVC 구조
 date: 2025-01-14
-categories: spring
-tags: [spring, dispatcher servlet, handler]
+categories: spring-mvc
+tags: [spring mvc, dispatcher servlet, handler]
+description: SpringMVC 구조 post
 permalink: springmvc/arch
 ---
 
@@ -10,13 +11,21 @@ permalink: springmvc/arch
 > ![SpringMVC 구조](/assets/img/posts/dev/java/spring-mvc/springmvc-arch1.png "SpringMVC 구조")
 
 ### 동작순서
-1. __Handler Mapping 조회__ : 요청 URL에 맞는 Handler(Controller) 조회
-2. __Handler Adapter 조회__ : 해당 Handler 실행 가능한 Adapter 조회
-3. __Handler Adapter 실행__ : Adapter가 있으면 Handler를 argument로 전달하며 Adapter 실행
-4. __Handler 실행__ : 실질적인 Handler(Controller) 실행
-5. __ModelAndView 객체 반환__ : Controller 에서 반환한 정보를 ModelAndView 객체로 변환 후 반환
-6. __View Resolver 호출__ : View Resolver를 찾고 실행한다.
-7. __View 반환__ : View Resolver는 뷰 논리 이름을 물리 이름으로 변경하고 Rendering 하기위해 View 객체를 반환한다.
+1. __HandlerMapping 조회__ : 요청 URL에 맞는 Handler(Controller) 조회 - from Dispatcher Servlet
+2. __HandlerAdapter 조회__ : 해당 Handler 처리 가능한 Adapter 조회 - from Dispatcher Servlet
+3. __HandlerAdapter 실행__ : 처리 가능한 Adapter 실행 - from Dispatcher Servlet
+4. __Handler 실행__ : Handler(Controller) 실행 - from HandlerAdapter
+5. __ModelAndView 객체 반환__ : Handler(Controller) 에서 반환한 정보를 ModelAndView 객체로 변환 후 반환 - from HandlerAdapter
+6. __View Resolver 호출__ : ModelAndView 객체의 논리 이름(페이지 이름) 전달하여 호출 - from Dispatcher Servlet
+> 6-1. 렌더링 할 수 있는 ViewResolver 조회 - from ViewResolver
+```
+> 0. BeanNameViewResolver         : Bean 이름으로 View 객체 반환(ex: excel 파일 생성 기능에 사용)
+> 1. InternalResourceViewResolver : JSP를 처리할 수 있는 InternalResourceView 객체 반환
+> ... 이하 생략
+```
+> 6-2. 해당 View 객체에 논리 이름을 물리 이름(절대 경로)으로 변환
+
+7. __View 객체 반환__ : View 객체를 반환한다.
 8. __View Rendering__ : View 객체의 Rendering메서드를 통해 Rendering 후 클라이언트 전달
 
 ### 왜 이런 구조로 동작할까?
@@ -27,15 +36,23 @@ permalink: springmvc/arch
 결론적으로 대규모 애플리케이션 개발과 유지보수를 최대한 단순화 하기 위해 Front Controller 구조를 사용한다.
 
 ### @Controller, @RequestMapping을 사용하면 어떻게 동작이 되는걸까?
-Spring은 Handler Mapping과 Handler Adapter 기능을 구현한 우선순위 기준으로 찾는다.
+Spring이 Handler Mapping과 Handler Adapter 기능을 __구현한 메서드에서 우선순위 기준으로 찾는다.__
 
-스프링이 자동 등록하는 HandlerMapping 우선 순위
-0. __RequestMappingHandlerMapping__ : @Controller/@RequestMapping 지정된 클래스
-1. BeanNameUrl HandlerMapping : Spring Bean이름으로 Handler를 찾는다.
+스프링이 찾는 HandlerMapping 우선 순위
+```
+0. RequestMappingHandlerMapping : @Controller/@RequestMapping 지정된 클래스 기준으로 Handler를 찾는다.
+1. BeanNameUrlHandlerMapping    : Bean이름으로 Handler를 찾는다.
+... 이하 생략
+```
 
-스프링이 자동 등록하는 HandlerAdapter 우선 순위
-0. __ReqeustMappingHandlerAdapter__ : @RequestMapping을 사용한 컨트롤러
-1. HttpReqeust HandlerAdapter : HttpRequestHandler 처리
-2. SimpleController HandlerAdapter : Controller 인터페이스 처리(@Controller X, 과거에 사용)
+스프링이 찾는 HandlerAdapter 우선 순위(각 HandlerAdapter 구현체의 supports() 메서드 호출하여 지원되는지 확인한다.)
+```
+0. RequestMappingHandlerAdapter   : @RequestMapping 애노테이션을 지정 했는지 확인
+1. HttpRequestHandlerAdapter      : HttpRequestHandler 인터페이스를 구현 했는지 확인
+2. SimpleControllerHandlerAdapter : Controller 인터페이스를 구현 했는지 확인(@Controller X, 과거에 사용)
+... 이하 생략
+```
 
-현재 Spring은 99% RequestMapping HandlerMapping/HandlerAdapter로 사용한다.
+현재 Spring은 99% __RequestMapping HandlerMapping/HandlerAdapter로 사용한다고 한다.__
+
+RequestMappingHandlerAdapter에 대해 자세한 내용은 [여기 클릭](request-mapping-handler-adapter)
