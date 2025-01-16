@@ -53,4 +53,55 @@ Spring이 Handler Mapping과 Handler Adapter 기능을 __구현한 메서드에�
 ... 이하 생략
 ```
 
-현재 Spring은 99% __RequestMapping HandlerMapping/HandlerAdapter로 사용한다고 한다.__
+> 현재 Spring은 99% __RequestMapping HandlerMapping/HandlerAdapter로 사용한다고 한다.__
+{: .prompt-tip }
+
+### 왜 RequestMapping을 주로 사용할까?
+
+아래와 같은 HTTP 요청,응답 기능을 쉽게 사용할 수 있도록 RequestMappingHandlerAdapter가 호출하기 때문.
+
+요청기능 : __HandlerMethodArguments__ Resolver - HTTP 요청에서 넘어온 데이터를 Handler(Controller)가 쉽게 받을 수 있게 제공하는 기능
+
+아래 Arguments Resolver가 대표적으로 지원해주는 파라미터 기능 
+``` java
+@Controller
+public class HomeController {
+
+    @RequestMapping("/home")
+    public String home(HttpServletRequest request, Model model, @RequestParam param,
+     @ModelAttribute apiData1, @RequestBody apiData2, HttpEntity httpEntity) {
+
+    }
+}
+```
+
+응답기능 : __HandlerMethodReturnValue__ Handler - HTTP 응답시 전달할 데이터를 쉽게 변환해주는 기능
+아래 ReturnValue Handler가 대표적으로 지원해주는 기능
+
+@ResponseBody, String, ModelAndView
+
+``` java
+@Controller
+public class HomeController {
+
+    @RequestMapping("/")
+    public String mainHome() {
+        return "home";
+    }
+
+    @ResponseBody
+    @RequestMapping("/api")
+    public apiData api() {
+
+    }
+
+    @RequestMapping("/home2")
+    public ModelAndView home2() {
+
+        String userName = User.getUserName;
+        ModelAndView mav = new ModelAndView("userName", userName);
+
+        return mav;
+    }
+}
+```
