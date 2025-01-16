@@ -54,5 +54,3 @@ Spring이 Handler Mapping과 Handler Adapter 기능을 __구현한 메서드에�
 ```
 
 현재 Spring은 99% __RequestMapping HandlerMapping/HandlerAdapter로 사용한다고 한다.__
-
-RequestMappingHandlerAdapter에 대해 자세한 내용은 [여기 클릭](request-mapping-handler-adapter)
