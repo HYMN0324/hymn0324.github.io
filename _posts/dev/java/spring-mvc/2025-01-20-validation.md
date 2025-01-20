@@ -313,7 +313,7 @@ public interface Validator {
 ```
 
 `supports(Class<?> clazz)`: 해당 검증기를 지원 여부 확인
-`validate(Object target, Errors errors)`: 검증 대상 객체와
+`validate(Object target, Errors errors)`: 검증 대상 객체와 `BindingResult`를 전달하여 검증기 실행
 
 구현 예시
 ``` java
