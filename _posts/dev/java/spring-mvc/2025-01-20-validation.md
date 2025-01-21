@@ -2,7 +2,7 @@
 title: Validation
 date: 2025-01-20
 categories: spring-mvc
-tags: [spring mvc, validation, bindingResult, fieldError]
+tags: [spring mvc, validation, bindingResult, fieldError, globalError, rejectValue, reject]
 description: Validation(검증) post
 permalink: springmvc/validation
 ---
@@ -49,7 +49,7 @@ Validation해야 할 객체를 지정해야하기 때문에 `target` 다음에 �
 public FieldError(String objectName, String field, String defaultMessage) {...}
 
 public FieldError(String objectName, String field, @Nullable Object rejectValue, 
-                    boolean bidingFailure, @Nullbale String[] codes, 
+                    boolean bindingFailure, @Nullbale String[] codes, 
                     @Nullable Object[] arguments, @Nullable String defaultMessage) {...}
 ```
 파라미터 목록
@@ -202,7 +202,7 @@ public String addUser(@ModelAttribute User user, BindingResult bindingResult) {
 
 required.user.userName=유저 이름은 필수입니다.
 range.user.userPassword=패스워드는 {0}자 이상, {1}자 이하로 입력해주세요.
-duplicateUser=회원이 이미 존재합니다.
+duplicateUser=유저가 이미 등록되었습니다.
 ```
 
 ``` text
@@ -259,7 +259,7 @@ duplicateUser.user
 duplicateUser
 ```
 
-위와 MessageCodesResolver는 구체적인 것을 먼저 만들고 덜 구체적인 것을 나중에 만든다.
+위와 같이 MessageCodesResolver는 구체적인 것을 먼저 만들고 덜 구체적인 것을 나중에 만든다.
 
 > 그래서 핵심은 구체적인 것부터 만들고 덜 구체적인 것을 만든다.
 {: .prompt-tip }
@@ -302,7 +302,7 @@ typeMismatch=타입 오류입니다.
 ```
 
 ### Validator Interface 사용
-Validation 로직이 복잡할경우 분리 해야 하는데 별도의 class로 분리하는 것이 좋다고 한다.
+Validation 로직이 복잡할경우 별도의 class로 분리하는 것이 좋다고 한다.
 
 Spring은 Validation을 체계적으로 제공하기 위해 다음 interface를 제공한다.
 ``` java
@@ -312,7 +312,7 @@ public interface Validator {
 }
 ```
 
-`supports(Class<?> clazz)`: 해당 검증기를 지원 여부 확인
+`supports(Class<?> clazz)`: 해당 검증기를 지원 여부 확인  
 `validate(Object target, Errors errors)`: 검증 대상 객체와 `BindingResult`를 전달하여 검증기 실행
 
 구현 예시
@@ -347,13 +347,16 @@ public class UserValidator implements Validator {
 
 기존 컨트롤러 코드 변경
 ``` java
+@Controller
 public class UserController {
-
     ...
-
+    
     // Validator 생성자 주입
-    @Autowired
-    private UserValidator userValidator;
+    private final UserValidator userValidator;
+
+    public UserController(UserValidator userValidator) {
+        this.userValidator = userValidator;
+    }
 
     @PostMapping("/add")
     public String addUser(@ModelAttribute User user, BindingResult bindingResult) {
@@ -362,10 +365,7 @@ public class UserController {
         userValidator.validate(user, bindingResult);
 
         if(bindingResult.hasErrors()) {
-            bindingResult.reject("duplicateUser", null, "유저가 이미 등록되었습니다.");
-
             log.info("errors = {}", bindingResult);
-
             return "/user/addForm";
         }
 
@@ -378,22 +378,28 @@ public class UserController {
 
 컨트롤러에 아래 내용을 추가하고
 ``` java
-@InitBinder
-public void init(WebDataBinder dataBinder) {
-    dataBinder.addValidators(userValidator);
+@Controller
+public class UserController {
+    ...
+    @InitBinder
+    public void init(WebDataBinder dataBinder) {
+        dataBinder.addValidators(userValidator);
+    }
+    ...
 }
 ```
 @Validated 추가 및 호출 로직 제거하면 된다.
 
 ``` java
+// 메서드에 @Validated 추가
 @PostMapping("/add")
 public String addUser(@Validated @ModelAttribute User user, BindingResult bindingResult) {
 
+    // Validator 메서드 직접 호출x
+    // userValidator.validate(user, bindingResult);
+
     if(bindingResult.hasErrors()) {
-        bindingResult.reject("duplicateUser", null, "유저가 이미 등록되었습니다.");
-
         log.info("errors = {}", bindingResult);
-
         return "/user/addForm";
     }
 
@@ -404,4 +410,9 @@ public String addUser(@Validated @ModelAttribute User user, BindingResult bindin
 }
 ```
 
-WebBinder에 검증기를 추가하고 해당 메서드에 @Validated를 적용하면 자동으로 검증기를 적용 할 수 있다.
+WebDataBinder에 검증기를 추가하고 해당 메서드에 @Validated를 적용하면 자동으로 검증기를 적용 할 수 있다.
+
+### BeanValidation 등장
+실무에서 위와 같은 검증을 간단하게 필드 Validation 할때 BeanValidation 으로 사용 한다고 한다.  
+
+[BeanValidation post 보기](bean-validation){:target="_blank"}
