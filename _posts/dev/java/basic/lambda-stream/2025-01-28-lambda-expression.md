@@ -50,15 +50,16 @@ permalink: lambda-stream/lambda-expression
 
 예시: Predicate 활용
 ``` java
-Predicate<String> isLongString = str -> str.length() > 10;
+Predicate<String> isLongString = str -> str.length() > 10; // 이 조건식을 변수에 대입한다.
 
+// 위 조건식 기준으로 조건을 확인 boolean을 반환한다.
 System.out.println(isLongString.test("Hello")); // false
 System.out.println(isLongString.test("Hello Lambda")); // true
 ```
 
 ## 람다식의 장점
 1. 코드 간결성
-* 익명 클래스 작성시 발생하는 반복적인 코드 제거.
+* 익명 객체 작성시 발생하는 반복적인 코드 제거.
 * 단순한 작업을 더 짧고 읽기 쉽게 표현 가능.
 
 2. 가독성 향상
@@ -72,7 +73,16 @@ System.out.println(isLongString.test("Hello Lambda")); // true
 
 예시: 간결한 코드  
 
-익명 클래스를 사용한 방식
+람다식과 Stream API의 병렬 스트림으로 사용한 방식
+``` java
+return dbUser.values().stream()
+        .filter(user -> user.getEmail().equals(paramEmail))
+        .findAny();
+
+// filter 메서드는 Predicate로 되어있다.
+```
+
+익명 객체 사용한 방식
 ``` java
 List<User> users = new ArrayList<>(dbUser.values());
 for(User user : users) {
@@ -80,11 +90,19 @@ for(User user : users) {
         return Optional.of(user);
     }
 }
+
+return Optional.empty();
 ```
 
-람다식과 Stream API의 병렬 스트림을 사용한 방식
+Iterator로 사용한 방식
 ``` java
-return dbUser.values().stream()
-                        .filter(user -> user.getEmail().equals(paramEmail))
-                        .findAny();
+Iterator<User> it = dbUser.values.iterator();
+while(iterator.hasNext()) {
+    User user = iterator.next();
+    if(user.getEmail().equals(paramEmail)) {
+        return Optional.of(user);
+    }
+}
+
+return Optional.empty();
 ```
