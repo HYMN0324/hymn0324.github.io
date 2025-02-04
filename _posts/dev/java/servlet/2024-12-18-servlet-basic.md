@@ -4,7 +4,7 @@ date: 2024-12-18
 categories: servlet
 tags: [servlet, 서블릿]
 description: 클라이언트 -> WAS -> 서블릿 컨테이너 구조 흐름
-permalink: servlet/basic
+permalink: java/servlet/basic
 ---
 
 ## 서블릿 정의

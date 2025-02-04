@@ -4,7 +4,7 @@ date: 2025-01-28
 categories: lambda-stream
 tags: [labmda, stream, fp]
 description: 람다식 [Lambda Expression] post
-permalink: lambda-stream/lambda-expression
+permalink: java/lambda-stream/lambda-expression
 ---
 
 ## 람다식
@@ -44,7 +44,7 @@ permalink: lambda-stream/lambda-expression
 | `java.lang.Runnable`  | void run()            | 매개변수 x, 반환 값 x |
 | `Supplier<T>`         | T get()               | 매개변수 x, 반환 값 o |
 | `Consumer<T>`         | void accept(T t)      | 매개변수 o, 반환 값 x |
-| `Function<T,R>`       | R apply(T t)          | 매개변수 o, 반환 값 o |
+| `Function<T, R>`      | R apply(T t)          | 매개변수 o, 반환 값 o |
 | `BiFunction<T, U, R>` | R apply(T t, U u)     | 매개변수 o(2개), 반환 값 o - 두개의 입력값을 받아 반환|
 | `Predicate<T>`        | boolean test(T t)     | 매개변수 o, 반환 값 o - 조건식을 표현하는데 사용.|
 
@@ -73,13 +73,13 @@ System.out.println(isLongString.test("Hello Lambda")); // true
 
 예시: 간결한 코드  
 
-람다식과 Stream API의 병렬 스트림으로 사용한 방식
+람다식과 Stream 사용한 방식
 ``` java
 return dbUser.values().stream()
         .filter(user -> user.getEmail().equals(paramEmail))
         .findAny();
 
-// filter 메서드는 Predicate로 되어있다.
+// filter 메서드의 인자 타입이 Predicate로 되어있어 조건식 작성
 ```
 
 익명 객체 사용한 방식

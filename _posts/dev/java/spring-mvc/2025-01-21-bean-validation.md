@@ -4,7 +4,7 @@ date: 2025-01-21
 categories: spring-mvc
 tags: [spring mvc, validation, beanValidation, bindingResult, fieldError, globalError, rejectValue, reject]
 description: BeanValidation post
-permalink: springmvc/bean-validation
+permalink: java/springmvc/bean-validation
 ---
 
 ## BeanValidation

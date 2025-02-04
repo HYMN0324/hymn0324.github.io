@@ -4,7 +4,7 @@ date: 2025-01-14
 categories: spring-mvc
 tags: [spring mvc, dispatcher servlet, handler]
 description: SpringMVC 구조 post
-permalink: springmvc/arch
+permalink: java/springmvc/arch
 ---
 
 ## SpringMVC 구조

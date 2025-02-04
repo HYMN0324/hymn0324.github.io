@@ -4,7 +4,7 @@ date: 2025-01-20
 categories: spring-mvc
 tags: [spring mvc, validation, bindingResult, fieldError, globalError, rejectValue, reject]
 description: Validation(검증) post
-permalink: springmvc/validation
+permalink: java/springmvc/validation
 ---
 
 ## Validation

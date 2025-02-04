@@ -4,7 +4,7 @@ date: 2025-01-16
 categories: spring-mvc
 tags: [spring mvc, dispatcher servlet, http message converter, requestMappingHandlerAdapter]
 description: HTTP message converter post
-permalink: springmvc/http-message-converter
+permalink: java/springmvc/http-message-converter
 ---
 
 ## HttpMessageConverter
