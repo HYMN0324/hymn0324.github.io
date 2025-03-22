@@ -1,7 +1,7 @@
 ---
 title: 람다식 [Lambda Expression]
 date: 2025-01-28
-categories: lambda-stream
+categories: java
 tags: [labmda, stream, fp]
 description: 람다식 [Lambda Expression] post
 permalink: java/lambda-stream/lambda-expression
