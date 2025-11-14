@@ -856,9 +856,9 @@ vi /data2/was/ws-ecs-server/webapps/ROOT/sessionTest.jsp
 > hosts 파일에 web-01 IP 또는 web-02 IP ecs.test.co.kr 추가 후 접속
 {: .prompt-warning }
 
-![image.png](/assets/img/posts/server/on-premise/app/tomcat/Tomcat 설치 및 세션 클러스터링 적용/image.png)
+![image.png](/assets/img/posts/server/on-premise/app/tomcat/tomcat-clustering/image.png)
 
-![image.png](/assets/img/posts/server/on-premise/app/tomcat/Tomcat 설치 및 세션 클러스터링 적용/image%201.png)
+![image.png](/assets/img/posts/server/on-premise/app/tomcat/tomcat-clustering/image%201.png)
 
 최초 접속 결과 2대 was 서버 중 was-02 서버 접속 확인
 
@@ -874,7 +874,7 @@ was-02 **서버 ecs was shutdown**
 
 **페이지 새로고침**
 
-![image.png](/assets/img/posts/server/on-premise/app/tomcat/Tomcat 설치 및 세션 클러스터링 적용/image 2.png)
+![image.png](/assets/img/posts/server/on-premise/app/tomcat/tomcat-clustering/image 2.png)
 
 was-01 서버 접속시 세션 정상 복제 확인
 
@@ -900,7 +900,7 @@ was-01 **서버 ecs was shutdown**
 
 **페이지 새로고침**
 
-![image.png](/assets/img/posts/server/on-premise/app/tomcat/Tomcat 설치 및 세션 클러스터링 적용/image 3.png)
+![image.png](/assets/img/posts/server/on-premise/app/tomcat/tomcat-clustering/image 3.png)
 
 was-01 → was-02 세션 정상 복제 확인
 
