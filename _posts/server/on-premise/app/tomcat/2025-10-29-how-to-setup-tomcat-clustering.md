@@ -2,12 +2,12 @@
 title: Tomcat 설치 및 세션 클러스터링 적용(on-premise)
 date: 2025-10-29
 categories: [server, on-premise]
-tags: [tomcat, session clustering]
+tags: [tomcat, session clustering, ajp, 톰캣 세션]
 description: Tomcat 세션 클러스터링 적용(on-premise) post
-permalink: server/on-premise/app/tomcat
+permalink: how-to-setup-tomcat-clustering
 ---
 
-# 설치 정보
+## 설치 정보
 
 | 구분 | 정보 | 서버 대상 |
 | --- | --- | --- |
@@ -17,19 +17,20 @@ permalink: server/on-premise/app/tomcat
 
 특이사항: 설치 경로 및 일반 설정은 해당 고객사 요청에 따라 작업하였음.
 
-# Tomcat 설치
+## Tomcat 설치
 
-서버 대상 : was-01, was-02
+**서버 대상 : was-01, was-02**
 
-## 의존 패키지 설치
+### 의존 패키지 설치
 
 ```bash
 dnf install java-17-openjdk httpd vim wget tar
 ```
 
-httpd 설치이유 - Apache에 제공되는 rotatelogs 명령어로 Tomcat 로그 파일 날짜 별 적재하기 위해 설치
+> httpd 설치이유 - rotatelogs 명령어로 Tomcat 로그 파일 날짜 별 적재 요청으로 설치.
+{: .prompt-info }
 
-## Tomcat 설치 및 설정
+### Tomcat 설치 및 설정
 
 ```bash
 mkdir ~/src
@@ -39,7 +40,7 @@ wget https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.109/bin/apache-tomcat-
 tar zxf apache-tomcat-9.0.109.tar.gz
 ```
 
-### ws-ecs-server
+#### ws-ecs-server
 
 ```bash
 cd ~/src/apache-tomcat-9.0.109/conf/
@@ -194,7 +195,7 @@ mkdir -p /data2/was/
 mv ~/src/apache-tomcat-9.0.109 /data2/was/ws-ecs-server
 ```
 
-### ws-ifs-server
+#### ws-ifs-server
 
 ```bash
 cd /data2/was/
@@ -289,7 +290,7 @@ curl 서버 IP:8081
 /data2/was/ws-ifs-server/bin/shutdown.sh
 ```
 
-### ws-pls-server
+#### ws-pls-server
 
 ```bash
 cd /data2/was/
@@ -384,7 +385,7 @@ curl 서버 IP:8082
 /data2/was/ws-pls-server/bin/shutdown.sh
 ```
 
-## Tomcat 실행 계정 권한 변경
+### Tomcat 실행 계정 권한 변경
 
 ```bash
 # 계정 추가
@@ -394,7 +395,7 @@ chown -R ecsuser:ecsuser /data2
 chown -R ecsuser:ecsuser /data3
 ```
 
-## Tomcat 세션 클러스터링 방화벽 설정
+### Tomcat 세션 클러스터링 방화벽 설정
 
 ```bash
 # ecs 세션 공유 멀티캐스트 port 허용 (UDP)
@@ -425,7 +426,7 @@ firewall-cmd --reload
 | 브로드캐스트 (Broadcast)| 255.255.255.255 | 같은 서브넷의 전체로 송신 |
 
 
-## Tomcat 기동
+### Tomcat 기동
 
 ```bash
 /data2/was/ws-ecs-server/bin/startup.sh
@@ -439,17 +440,17 @@ ps -ef | grep pls
 netstat -tnlp
 ```
 
-# Apache 설치
+## Apache 설치
 
-서버 대상: web-01, web-02
+**서버 대상: web-01, web-02**
 
-## 의존 패키지 설치
+### 의존 패키지 설치
 
 ```bash
 dnf install redhat-rpm-config gcc gcc-c++ make apr-devel apr-util apr-util-devel pcre-devel openssl-devel vim wget tar
 ```
 
-## 압축 해제 및 설치
+### 소스 압축 해제 및 설치
 
 ```bash
 mkdir ~/src
@@ -474,7 +475,7 @@ make -j$(nproc)
 make install
 ```
 
-## httpd.conf 기본 설정
+### httpd.conf 기본 설정
 
 ```bash
 cd /data2/apache/conf
@@ -612,7 +613,7 @@ SSLRandomSeed connect builtin
 Syntax OK
 ```
 
-## mod_jk 모듈 설치
+### mod_jk 모듈 설치
 
 ```bash
 cd ~/src
@@ -636,7 +637,7 @@ make install
 ll /data2/apache/modules/mod_jk.so
 ```
 
-## mod_jk 모듈 활성화
+### mod_jk 모듈 활성화
 
 ```bash
 vi /data2/apache/conf/httpd.conf
@@ -652,7 +653,7 @@ LoadModule jk_module modules/mod_jk.so
 Include conf/mod_jk.conf
 ```
 
-## mod_jk 모듈 기본 설정
+### mod_jk 모듈 기본 설정
 
 ```bash
 vi /data2/apache/conf/mod_jk.conf
@@ -667,7 +668,7 @@ vi /data2/apache/conf/mod_jk.conf
 </IfModule>
 ```
 
-## workers.properties 설정
+### workers.properties 설정
 
 ```bash
 vi /data2/apache/conf/workers.properties
@@ -720,7 +721,7 @@ worker.pls2.lbfactor=1
 Syntax OK
 ```
 
-## Apache vhost 설정
+### Apache vhost 설정
 
 ```bash
 cd /data2/apache/conf/extra/
@@ -775,7 +776,7 @@ vi /data2/apache/conf/httpd.conf
 Syntax OK
 ```
 
-## Apache 실행 계정 권한 변경
+### Apache 실행 계정 권한 변경
 
 ```bash
 mkdir -p /data3/logs/httpd
@@ -784,7 +785,7 @@ chown -R ecsuser:ecsuser /data2
 chown -R ecsuser:ecsuser /data3
 ```
 
-## Apache 방화벽 설정 및 기동
+### Apache 방화벽 설정 및 기동
 
 ```bash
 firewall-cmd --add-port=80/tcp --permanent
@@ -801,7 +802,7 @@ ps -ef | grep httpd
 netstat -tnlp
 ```
 
-# 세션 클러스터링 테스트
+## 세션 클러스터링 테스트
 
 서버 대상: was-01, was-02
 
@@ -856,9 +857,9 @@ vi /data2/was/ws-ecs-server/webapps/ROOT/sessionTest.jsp
 > hosts 파일에 web-01 IP 또는 web-02 IP ecs.test.co.kr 추가 후 접속
 {: .prompt-warning }
 
-![image.png](/assets/img/posts/server/on-premise/app/tomcat/tomcat-clustering/image.png)
+![image.png](/assets/img/posts/server/on-premise/app/tomcat/how-to-setup-tomcat-clustering/image.png)
 
-![image.png](/assets/img/posts/server/on-premise/app/tomcat/tomcat-clustering/image%201.png)
+![image.png](/assets/img/posts/server/on-premise/app/tomcat/how-to-setup-tomcat-clustering/image%201.png)
 
 최초 접속 결과 2대 was 서버 중 was-02 서버 접속 확인
 
@@ -874,7 +875,7 @@ was-02 **서버 ecs was shutdown**
 
 **페이지 새로고침**
 
-![image.png](/assets/img/posts/server/on-premise/app/tomcat/tomcat-clustering/image 2.png)
+![image.png](/assets/img/posts/server/on-premise/app/tomcat/how-to-setup-tomcat-clustering/image 2.png)
 
 was-01 서버 접속시 세션 정상 복제 확인
 
@@ -900,7 +901,7 @@ was-01 **서버 ecs was shutdown**
 
 **페이지 새로고침**
 
-![image.png](/assets/img/posts/server/on-premise/app/tomcat/tomcat-clustering/image 3.png)
+![image.png](/assets/img/posts/server/on-premise/app/tomcat/how-to-setup-tomcat-clustering/image 3.png)
 
 was-01 → was-02 세션 정상 복제 확인
 
