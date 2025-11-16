@@ -20,7 +20,7 @@ permalink: tomcat-clustering-checklist
                    redirectPort="8444" URIEncoding="UTF-8" />
         ```
         
-    - web서버 [`workers.properties`](http://workers.properties) - was서버 IP, port 매칭 확인.
+    - web서버 `workers.properties` - was서버 IP, port 매칭 확인.
         
         ```
         worker.list=ifs_loadbalancer
