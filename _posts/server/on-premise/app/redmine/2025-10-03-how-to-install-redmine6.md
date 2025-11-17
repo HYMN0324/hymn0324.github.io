@@ -381,7 +381,7 @@ bundle exec rails server -e production
 
 <!--![image.png](image%203.png)-->
 
-![초기 관리자 계정 : admin / admin](image%204.png)
+<!--![초기 관리자 계정 : admin / admin](image%204.png)-->
 
 초기 관리자 계정 : admin / admin
 
