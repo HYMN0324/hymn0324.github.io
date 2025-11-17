@@ -165,7 +165,7 @@ bin/mysqld --initialize --user=mysql
 # 임시 패스워드 확인
 ```
 
-![image.png](image%201.png)
+<!--![image.png](image%201.png)-->
 
 ```bash
 bin/mysqld_safe &
@@ -345,7 +345,7 @@ chmod -R 755 files log tmp public/assets
 bundle exec rails server -e production
 ```
 
-![image.png](image%202.png)
+<!--![image.png](image%202.png)-->
 
 #### 메일 연동
 
@@ -379,21 +379,21 @@ bundle exec rails server -e production
 
 #### 관리자 계정 패스워드 변경
 
-![image.png](image%203.png)
+<!--![image.png](image%203.png)-->
 
 ![초기 관리자 계정 : admin / admin](image%204.png)
 
 초기 관리자 계정 : admin / admin
 
-![image.png](image%205.png)
+<!--![image.png](image%205.png)-->
 
 메일 변경
 
-![image.png](image%206.png)
+<!--![image.png](image%206.png)-->
 
-![image.png](image%207.png)
+<!--![image.png](image%207.png)-->
 
-![image.png](image%208.png)
+<!--![image.png](image%208.png)-->
 
 #### Plugin 설치
 
@@ -418,7 +418,7 @@ touch tmp/restart.txt
 bundle exec rails server -e production
 ```
 
-![image.png](image%209.png)
+<!--![image.png](image%209.png)-->
 
 WYSIWYG Editor plugin
 
@@ -433,7 +433,7 @@ touch tmp/restart.txt
 bundle exec rails server -e production
 ```
 
-![image.png](image%2010.png)
+<!--![image.png](image%2010.png)-->
 
 #### Opale 테마 설치
 
@@ -449,7 +449,7 @@ bundle exec rails server -e production
 
 설정 > 표시방식 - 테마 : Opale 선택 후 저장
 
-![image.png](image%2011.png)
+<!--![image.png](image%2011.png)-->
 
 #### 기타
 
@@ -704,7 +704,7 @@ sudo systemctl enable --now redmine.service
 sudo systemctl list-dependencies redmine
 ```
 
-![image.png](image%2012.png)
+<!--![image.png](image%2012.png)-->
 
 ```bash
 # 재부팅시 정상 서비스 되는지 확인
