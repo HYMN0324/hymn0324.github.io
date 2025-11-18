@@ -9,10 +9,10 @@ permalink: how-to-install-redmine6
 
 ## 설치 개요
 
-| 구분 | 정보 |
+| 구분 | 버전 정보 |
 | --- | --- |
-| OS | Ubuntu 22 |
-| RVM(Ruby Version Manager) | 1.2 |
+| OS | Ubuntu 24.04.3 LTS |
+| RVM(Ruby Version Manager) | 1.29 |
 | Ruby | 3.2.9 |
 | MySQL | 8.0.43 |
 | Redmine | 6.0.6 |
@@ -95,7 +95,7 @@ mkdir bld && cd bld
 
 ```bash
 cmake .. \ 
-  -DCMAKE_INSTALL_PREFIX=/data/mysql \ 
+  -DCMAKE_INSTALL_PREFIX=/usr/local/mysql \ 
   -DCMAKE_C_COMPILER=/usr/bin/gcc-10 \ 
   -DCMAKE_CXX_COMPILER=/usr/bin/g++-10 \ 
   -DCMAKE_CXX_FLAGS="-std=c++17" \ 
