@@ -68,5 +68,5 @@ style: apply prettier formatting to blog components
 ```
 
 ## 참조 문서
-<https://git-scm.com/docs/githooks>
+<https://git-scm.com/docs/githooks>  
 <https://github.com/conventional-changelog/commitlint>
