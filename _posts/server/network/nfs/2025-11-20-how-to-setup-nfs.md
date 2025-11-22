@@ -13,10 +13,21 @@ NFS(Network File System)는 네트워크에 파일을 저장하는 메커니즘�
 
 네트워크와 파일시스템으로 동작되기 때문에 커널에 모듈형태로 내장되어있습니다.
 
+<!--
 > 클라이언트와 서버간 디렉터리 권한을 유저 이름으로 맞췄어도 unix 파일시스템은 UID,GID 기준으로 동작하기 때문에 권한 문제 발생 할 수 있으므로 삽질 하지 않기를 바랍니다.🙏🏻
 {: .prompt-warning}
+-->
 
-## NFS 서버 설정
+## 테스트 환경
+
+| 구분 | IP Address |
+| --- | --- |
+| NFS Server | 172.16.2.5 |
+| Client  |172.16.3.1 |
+
+상황: NFS Server에 외장 하드가 `/usb`로 마운트 되어있고, 공용으로 사용 목적으로 NFS 설정.
+
+## NFS Server 설정
 
 ```bash
 dnf install nfs-utils
@@ -30,7 +41,7 @@ vi /etc/exports
 # 설정 구문 
 # `공유할 디렉터리 절대경로` `client주소(권한 설정)`
 
-# 설정 구문 예시
+# 설정 예시
 /usb 172.16.0.0/16(rw)
 ```
 
@@ -39,9 +50,10 @@ vi /etc/exports
 * `rw` : read-write(읽기 쓰기)
 {: .prompt-info}
 
-> 접근 할 공유 디렉터리 소유자UID / 그룹UID를 클라이언트에서 동일 하게 설정 할 수 없을 경우,`no_root_squash` 옵션 추가.(보안상 권장x)  
-/usb 172.16.0.0/16(rw, `no_root_squash`)
-{: .prompt-info}
+> **Client에서 공유 디렉터리 접근하는 유저의 UID/GID는 NFS Server의 `/usb` 소유자 UID/GID와 동일해야합니다.**  
+동일한 UID/GID 유저 생성 할 수 없는 상황이면, root 권한으로 접근 할 수 있는 `no_root_squash` 옵션 추가.(보안상 권장x)  
+설정 예시: /usb 172.16.0.0/16(rw, `no_root_squash`)
+{: .prompt-warning}
 
 ```bash
 # nfs3 port 허용
@@ -60,7 +72,7 @@ systemctl status nfs-server
 systemctl enable nfs-server
 ```
 
-## 클라이언트 설정
+## Client 설정
 ```bash
 dnf install nfs-utils
 
@@ -68,18 +80,68 @@ dnf install nfs-utils
 showmount -e 172.16.2.5
 
 # nfs 연결
-mkdir /mnt/nfs
-mount -t nfs 172.16.2.5:/usb /mnt/nfs
+mkdir /mnt/nfs_usb
+mount -t nfs 172.16.2.5:/usb /mnt/nfs_usb
 
 # nfs 연결 확인
 df -h
 ```
 
+## 테스트
+
+### Client
+
+```bash
+cd /mnt/nfs_usb/
+
+# 디렉터리 생성 권한 테스트
+mkdir client
+
+# 파일 생성 및 쓰기 권한 테스트
+vi client/README.md
+# 쓰기 및 저장.
+write from 172.16.3.1 client.
+```
+
+### Server
+
+```bash
+cd /usb
+
+ls -al
+
+cat client/README.md
+write from 172.16.3.1 client.
+```
+
 ## troubleshooting
 
-### 연결 문제 해결
+### clnt_create: RPC: Unable to receive
 
-### 권한 문제 해결
+방화벽 rpc-bind `111` port, mountd `20048` port 허용.
+
+```bash
+firewall-cmd --add-port=111/tcp --add-port=111/udp --permanent
+firewall-cmd --add-port=20048/tcp --add-port=20048/udp --permanent
+firewall-cmd --reload
+```
+
+### nfs: server not responding
+
+방화벽 nfs `2049` port 허용.
+
+```bash
+firewall-cmd --add-port=2049/tcp --add-port=2049/udp --permanent
+firewall-cmd --reload
+```
+
+### umount device is busy / 무한 로딩
+
+lazy `-l` 옵션 부여.
+
+```bash
+umount -l /mnt/nfs
+```
 
 ## 참조문서
 NFS 정의 : <https://www.ibm.com/docs/ko/aix/7.3.0?topic=management-network-file-system>  
