@@ -153,11 +153,32 @@ bin/apachectl -v
 ### 기본 설정
 
 ```bash
-cd /usr/local/apache/conf/
+cd conf/
 ls -al
 cp httpd.conf httpd.conf_origin
 
+# 기본 접속 정보 설정
 sed -i 's|^#ServerName.*|ServerName 127.0.0.1:80|' httpd.conf
+
+# apache log 경로 설정
+sed -i 's|ErrorLog "logs/error_log"|ErrorLog "/var/log/httpd/error_log"|' httpd.conf
+sed -i 's|CustomLog "logs/access_log" common|CustomLog "/var/log/httpd/access_log" common|' httpd.conf
+
+# apache log 디렉터리 생성
+mkdir /var/log/httpd/
+```
+
+```bash
+# 문법 체크
+/usr/local/apache/bin/apachectl -t
+# Syntax OK
+```
+
+### 방화벽 설정
+
+```bash
+firewall-cmd --add-port=80/tcp --permanent
+firewall-cmd --reload
 ```
 
 ## AJP 설정
@@ -172,9 +193,9 @@ was1번 서버가 down되어도 was2번 서버로 요청 할 수 있습니다.
 | a-was | 8009 |
 | b-was | 8019 |
 
-### Tomcat 설정
+### Tomcat
 
-**서버 대상: was-01, was02**  
+**서버 대상: was-01, was-02**  
 
 #### a-was
 
@@ -296,9 +317,9 @@ telnet 172.16.2.2 8019
 # ctrl + ] 키 입력 후 quit 입력하여 telnet 종료
 ```
 
-### Apache 설정
+### Apache
 
-**서버 대상: was-01, was02**
+**서버 대상: web-01, web-02**
 
 #### mod_jk 모듈 설치
 
@@ -324,7 +345,7 @@ make install
 ll /usr/local/apache/modules/mod_jk.so
 ```
 
-#### mod_jk 모듈 활성화
+#### mod_jk 모듈 설정
 
 ```bash
 vi /usr/local/apache/conf/httpd.conf
@@ -338,20 +359,20 @@ LoadModule ...
 # 추가
 LoadModule jk_module modules/mod_jk.so
 
+...
+
 # 맨 밑 추가
 Include conf/mod_jk.conf
 ```
 
-#### mod_jk 모듈 기본 설정
-
 ```bash
-vi /usr/local/apache/apache/conf/mod_jk.conf
+vi /usr/local/apache/conf/mod_jk.conf
 ```
 
-```bash
+```text
 <IfModule mod_jk.c>
-    JkWorkersFile /usr/local/apache/apache/conf/workers.properties
-    JkLogFile "|/usr/local/apache/apache/bin/rotatelogs /var/log/httpd/mod_jk.log-%Y%m%d 86400 540"
+    JkWorkersFile /usr/local/apache/conf/workers.properties
+    JkLogFile "|/usr/local/apache/bin/rotatelogs /var/log/httpd/mod_jk.log-%Y%m%d 86400 540"
     JkLogLevel info
     JkLogStampFormat "[%a %b % %H:%M:%S %Y] "
 </IfModule>
@@ -363,6 +384,145 @@ vi /usr/local/apache/apache/conf/mod_jk.conf
 vi /usr/local/apache/conf/workers.properties
 ```
 
+```text
+worker.list=a-loadbalancer,b-loadbalancer
+
+worker.a-loadbalancer.type=lb
+worker.a-loadbalancer.balanced_workers=a-was1,a-was2
+
+worker.a-was1.type=ajp13
+worker.a-was1.host=172.16.2.1
+worker.a-was1.port=8009
+
+worker.a-was2.type=ajp13
+worker.a-was2.host=172.16.2.2
+worker.a-was2.port=8009
+
+
+worker.b-loadbalancer.type=lb
+worker.b-loadbalancer.balanced_workers=b-was1,b-was2
+
+worker.b-was1.type=ajp13
+worker.b-was1.host=172.16.2.1
+worker.b-was1.port=8019
+
+worker.b-was2.type=ajp13
+worker.b-was2.host=172.16.2.2
+worker.b-was2.port=8019
+```
+
+```bash
+# 문법 체크
+/usr/local/apache/bin/apachectl -t
+# Syntax OK
+```
+
+#### 도메인 및 JkMount 설정
+
+```bash
+# httpd.conf - `httpd-vhosts.conf` Include 활성화
+sed -i 's|^#Include conf/extra/httpd-vhosts.conf|Include conf/extra/httpd-vhosts.conf|' /usr/local/apache/conf/httpd.conf
+```
+
+```bash
+cd /usr/local/apache/conf/extra/
+ls -al
+mv httpd-vhosts.conf httpd-vhosts.conf_origin
+vi httpd-vhosts.conf
+```
+
+```text
+# http://a-site.com 설정
+<VirtualHost *:80>
+    ServerName a-site.com
+    
+    # a-site.com의 모든 url 요청시 a-loadbalancer의 worker(a-was01, a-was02) 요청
+    JkMount /* a-loadbalancer
+
+    ErrorLog "|/usr/local/apache/bin/rotatelogs /var/log/httpd/a-site.com_error_log-%Y%m%d 86400 540"
+    CustomLog "|/usr/local/apache/bin/rotatelogs /var/log/httpd/a-site.com_access_log-%Y%m%d 86400 540" common
+</VirtualHost>
+
+# http://b-site.com 설정
+<VirtualHost *:80>
+    ServerName b-site.com
+    
+    # b-site.com의 모든 url 요청시 b-loadbalancer의 worker(b-was01, b-was02) 요청
+    JkMount /* b-loadbalancer
+
+    ErrorLog "|/usr/local/apache/bin/rotatelogs /var/log/httpd/b-site.com_error_log-%Y%m%d 86400 540"
+    CustomLog "|/usr/local/apache/bin/rotatelogs /var/log/httpd/b-site.com_access_log-%Y%m%d 86400 540" common
+</VirtualHost>
+```
+
+```bash
+# 문법 체크
+/usr/local/apache/bin/apachectl -t
+# Syntax OK
+```
+
+#### Apache 기동
+
+```bash
+/usr/local/apache/bin/apachectl start
+
+ps -ef | grep httpd
+netstat -tnlp | grep 80
+```
+
+### AJP 통신 테스트
+
+
+**로컬 PC** `hosts` 파일 수정.
+
+```text
+# web-01 / web-02 둘 중 서버 IP 지정
+172.16.3.1 a-site.com b-site.com
+# 또는
+172.16.3.2 a-site.com b-site.com
+```
+
+**로컬 PC**에서 브라우저 접속 또는`curl` 테스트.
+```bash
+curl http://a-site.com
+
+curl http://b-site.com
+```
+
+접속 또는 curl 실시간 was 응답 확인.
+
+**서버 대상: was-01, was-02**
+
+```bash
+tail -f /usr/local/tomcat/a-was/logs/localhost_access_log.$(date +%Y-%m-%d).txt
+
+tail -f /usr/local/tomcat/b-was/logs/localhost_access_log.$(date +%Y-%m-%d).txt
+```
+
+> was-01, was-02 터미널 창 동시에 분할하여 실시간 로그 확인.
+{: .prompt-info}
+
+마지막으로 was-01 was-02 서버 둘중 was shutdown하여 지속 정상 접속 확인.
+```
+/usr/local/tomcat/a-was/bin/shutdown.sh
+
+/usr/local/tomcat/b-was/bin/shutdown.sh
+```
+
+## 세션 클러스터링 설정
+
+**서버 대상: was-01, was-02**
+
+> update soon!!
+{: .prompt-info}
+
+<!--
+### Cluster, Manager 설정
+
+### Membership 설정
+
+### Receiver 설정
+-->
 
 ## Troubleshooting
 ### could not find /usr/local/apache/bin/apxs  
