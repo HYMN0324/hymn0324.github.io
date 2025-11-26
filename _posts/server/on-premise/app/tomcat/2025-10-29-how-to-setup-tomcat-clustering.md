@@ -179,6 +179,8 @@ mkdir /var/log/httpd/
 ```bash
 firewall-cmd --add-port=80/tcp --permanent
 firewall-cmd --reload
+
+firewall-cmd --list-all
 ```
 
 ## AJP 설정
@@ -187,6 +189,8 @@ firewall-cmd --reload
 > apache의 mod_jk 모듈을 사용하여 loadbalancer를 활성화 합니다.  
 was1번 서버가 down되어도 was2번 서버로 요청 할 수 있습니다.
 {: .prompt-info}
+
+### 주요 설정 내용
 
 | WAS 명 | AJP Port|
 | --- | --- |
@@ -226,18 +230,6 @@ vi server.xml
            />
 ```
 
-142번 line 이동, `jvmRoute="a-was1/2"` 추가.
-
-```xml
-<!-- was-01 서버 -->
-<Engine name="Catalina" defaultHost="localhost" jvmRoute="a-was1">
-```
-
-```xml
-<!-- was-02 서버 -->
-<Engine name="Catalina" defaultHost="localhost" jvmRoute="a-was2">
-```
-
 #### b-was
 
 ```bash
@@ -267,27 +259,17 @@ vi server.xml
            />
 ```
 
-142번 line 이동, `jvmRoute="b-was1/2"` 추가.
-
-```xml
-<!-- was-01 서버 -->
-<Engine name="Catalina" defaultHost="localhost" jvmRoute="b-was1">
-```
-
-```xml
-<!-- was-02 서버 -->
-<Engine name="Catalina" defaultHost="localhost" jvmRoute="b-was2">
-```
-
-#### AJP 방화벽 설정
+#### 방화벽 설정
 
 ```bash
 firewall-cmd --add-port=8009/tcp --permanent
 firewall-cmd --add-port=8019/tcp --permanent
 firewall-cmd --reload
+
+firewall-cmd --list-all
 ```
 
-#### AJP 포트 통신 확인
+#### AJP port listening 확인
 
 ```bash
 /usr/local/tomcat/a-was/bin/startup.sh
@@ -513,16 +495,317 @@ tail -f /usr/local/tomcat/b-was/logs/localhost_access_log.$(date +%Y-%m-%d).txt
 
 **서버 대상: was-01, was-02**
 
-> update soon!!
-{: .prompt-info}
+### 주요 설정 내용
 
-<!--
-### Cluster, Manager 설정
+| WAS 명 | Membership Port | Receiver Port |
+| --- | --- | --- |
+| a-was | 45564 | 5000 |
+| b-was | 45565 | 5001 |
 
-### Membership 설정
+### a-was
 
-### Receiver 설정
--->
+```bash
+vi /usr/local/tomcat/a-was/conf/server.xml
+```
+
+142번 line 이동, `jvmRoute` 속성 추가.
+
+```xml
+<!-- was-01 서버 -->
+<Engine name="Catalina" defaultHost="localhost" jvmRoute="a-was1">
+```
+
+```xml
+<!-- was-02 서버 -->
+<Engine name="Catalina" defaultHost="localhost" jvmRoute="a-was2">
+```
+
+Engine 설정 안에 추가.
+
+```xml
+      <!--For clustering, please take a look at documentation at:
+          /docs/cluster-howto.html  (simple how to)
+          /docs/config/cluster.html (reference documentation) -->
+      <!--
+      <Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster"/>
+      -->
+      <Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster"
+               channelSendOptions="6">
+        <!--
+        ###########################################################################
+          BackupManager(주-보조 복제) / DeltaManager(전체 노드 복제) 둘 중 1개 선택하여 설정
+        ###########################################################################
+        -->
+        <!--
+        <Manager className="org.apache.catalina.ha.session.BackupManager"
+                 expireSessionsOnShutdown="false"
+                 notifyListenersOnReplication="true"
+                 mapSendOptions="6"/>
+        -->
+        <Manager className="org.apache.catalina.ha.session.DeltaManager"
+                 expireSessionsOnShutdown="false"
+                 notifyListenersOnReplication="true"/>
+
+        <Channel className="org.apache.catalina.tribes.group.GroupChannel">
+          <Membership className="org.apache.catalina.tribes.membership.McastService"
+                      address="228.0.0.4"
+                      port="45564"
+                      frequency="500"
+                      dropTime="3000"/>
+          <Receiver className="org.apache.catalina.tribes.transport.nio.NioReceiver"
+                    address="was-01 / was-02 서버 IP"
+                    port="5000"
+                    selectorTimeout="100"
+                    maxThreads="6"/>
+
+          <Sender className="org.apache.catalina.tribes.transport.ReplicationTransmitter">
+            <Transport className="org.apache.catalina.tribes.transport.nio.PooledParallelSender"/>
+          </Sender>
+          <Interceptor className="org.apache.catalina.tribes.group.interceptors.TcpFailureDetector"/>
+          <Interceptor className="org.apache.catalina.tribes.group.interceptors.MessageDispatchInterceptor"/>
+          <Interceptor className="org.apache.catalina.tribes.group.interceptors.ThroughputInterceptor"/>
+        </Channel>
+
+        <Valve className="org.apache.catalina.ha.tcp.ReplicationValve"
+               filter=".*\.gif|.*\.js|.*\.jpeg|.*\.jpg|.*\.png|.*\.htm|.*\.html|.*\.css|.*\.txt"/>
+
+        <Deployer className="org.apache.catalina.ha.deploy.FarmWarDeployer"
+                  tempDir="/tmp/war-temp/"
+                  deployDir="/tmp/war-deploy/"
+                  watchDir="/tmp/war-listen/"
+                  watchEnabled="false"/>
+
+        <ClusterListener className="org.apache.catalina.ha.session.ClusterSessionListener"/>
+      </Cluster>
+```
+
+> 이번 post 에서는 was 서버 2대로 클러스터링을 설정하기 때문에  
+세션 복제간 was 부하에 지장이 없어 `DeltaManager` 전체 노드에 세션 복제 방식을 선택하였습니다.  
+was 서버 여러대로 클러스터링 설정 할 경우 `BackupManager`를 권고합니다.
+{: .prompt-warning}
+
+### b-was
+
+```bash
+vi /usr/local/tomcat/b-was/conf/server.xml
+```
+
+142번 line 이동, `jvmRoute` 속성 추가.
+
+```xml
+<!-- was-01 서버 -->
+<Engine name="Catalina" defaultHost="localhost" jvmRoute="b-was1">
+```
+
+```xml
+<!-- was-02 서버 -->
+<Engine name="Catalina" defaultHost="localhost" jvmRoute="b-was2">
+```
+
+Engine 설정 안에 추가.
+
+```xml
+      <!--For clustering, please take a look at documentation at:
+          /docs/cluster-howto.html  (simple how to)
+          /docs/config/cluster.html (reference documentation) -->
+      <!--
+      <Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster"/>
+      -->
+      <Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster"
+               channelSendOptions="6">
+        <!--
+        ###########################################################################
+          BackupManager(주-보조 복제) / DeltaManager(전체 노드 복제) 둘 중 1개 선택하여 설정
+        ###########################################################################
+        -->
+        <!--
+        <Manager className="org.apache.catalina.ha.session.BackupManager"
+                 expireSessionsOnShutdown="false"
+                 notifyListenersOnReplication="true"
+                 mapSendOptions="6"/>
+        -->
+        <Manager className="org.apache.catalina.ha.session.DeltaManager"
+                 expireSessionsOnShutdown="false"
+                 notifyListenersOnReplication="true"/>
+
+        <Channel className="org.apache.catalina.tribes.group.GroupChannel">
+          <Membership className="org.apache.catalina.tribes.membership.McastService"
+                      address="228.0.0.4"
+                      port="45565"
+                      frequency="500"
+                      dropTime="3000"/>
+          <Receiver className="org.apache.catalina.tribes.transport.nio.NioReceiver"
+                    address="was-01 / was-02 서버 IP"
+                    port="5001"
+                    selectorTimeout="100"
+                    maxThreads="6"/>
+
+          <Sender className="org.apache.catalina.tribes.transport.ReplicationTransmitter">
+            <Transport className="org.apache.catalina.tribes.transport.nio.PooledParallelSender"/>
+          </Sender>
+          <Interceptor className="org.apache.catalina.tribes.group.interceptors.TcpFailureDetector"/>
+          <Interceptor className="org.apache.catalina.tribes.group.interceptors.MessageDispatchInterceptor"/>
+          <Interceptor className="org.apache.catalina.tribes.group.interceptors.ThroughputInterceptor"/>
+        </Channel>
+
+        <Valve className="org.apache.catalina.ha.tcp.ReplicationValve"
+               filter=".*\.gif|.*\.js|.*\.jpeg|.*\.jpg|.*\.png|.*\.htm|.*\.html|.*\.css|.*\.txt"/>
+
+        <Deployer className="org.apache.catalina.ha.deploy.FarmWarDeployer"
+                  tempDir="/tmp/war-temp/"
+                  deployDir="/tmp/war-deploy/"
+                  watchDir="/tmp/war-listen/"
+                  watchEnabled="false"/>
+
+        <ClusterListener className="org.apache.catalina.ha.session.ClusterSessionListener"/>
+      </Cluster>
+```
+
+### 방화벽 설정
+```bash
+# Membership Port(udp)
+firewall-cmd --add-port=45564/udp --permanent
+firewall-cmd --add-port=45565/udp --permanent
+
+# Receiver Port
+firewall-cmd --add-port=5000/tcp --permanent
+firewall-cmd --add-port=5001/tcp --permanent
+
+firewall-cmd --reload
+
+firewall-cmd --list-all
+```
+
+### 세션 클러스터링 테스트
+
+**서버 대상 : was-01, was-02**
+
+was 재기동.
+
+```bash
+/usr/local/tomcat/a-was/bin/shutdown.sh
+/usr/local/tomcat/b-was/bin/shutdown.sh
+
+/usr/local/tomcat/a-was/bin/startup.sh
+/usr/local/tomcat/b-was/bin/startup.sh
+
+ps -ef | grep java
+
+netstat -tnlp | grep java
+# AJP port, Receiver port 확인
+# ...
+# tcp6       0      0 :::8019                 :::*                    LISTEN      xxx/java          
+# tcp6       0      0 :::8009                 :::*                    LISTEN      xxx/java
+# tcp6       0      0 xxx.xx.x.x:5001         :::*                    LISTEN      xxx/java          
+# tcp6       0      0 xxx.xx.x.x:5000         :::*                    LISTEN      xxx/java
+```
+
+세션 클러스터링 jsp 페이지 생성.
+
+a-was
+
+```bash
+vi /usr/local/tomcat/a-was/webapps/ROOT/sessionTest.jsp
+```
+
+```jsp
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page import="java.util.*" %>
+
+<%
+    // 세션 생성 시간 및 세션 ID
+    String sessionId = session.getId();
+    Date createTime = new Date(session.getCreationTime());
+    Date lastAccess = new Date(session.getLastAccessedTime());
+
+    // 세션에 카운터 저장
+    Integer count = (Integer)session.getAttribute("count");
+    if(count == null) {
+        count = 1;
+    } 
+    else {
+        count++;
+    }
+    session.setAttribute("count", count);
+%>
+<html>
+    <head>
+        <title>a-was Session Clustering Test</title>
+    </head>
+    <body>
+        <h2>a-was Session Clustering Test</h2>
+        
+        <hr>
+        
+        <p><b>Session ID:</b><%= sessionId %></p>
+        <p><b>Session Create Time:</b><%= createTime %></p>
+        <p><b>Last Access Time:</b><%= lastAccess %></p>
+        <p><b>Access Count (세션 유지 확인용):</b><%= count %></p>
+        
+        <p><a href="sessionTest.jsp">[새로고침]</a></p>
+    </body>
+</html>
+```
+
+b-was
+
+```bash
+vi /usr/local/tomcat/b-was/webapps/ROOT/sessionTest.jsp
+```
+
+```jsp
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page import="java.util.*" %>
+
+<%
+    // 세션 생성 시간 및 세션 ID
+    String sessionId = session.getId();
+    Date createTime = new Date(session.getCreationTime());
+    Date lastAccess = new Date(session.getLastAccessedTime());
+
+    // 세션에 카운터 저장
+    Integer count = (Integer)session.getAttribute("count");
+    if(count == null) {
+        count = 1;
+    } 
+    else {
+        count++;
+    }
+    session.setAttribute("count", count);
+%>
+<html>
+    <head>
+        <title>b-was Session Clustering Test</title>
+    </head>
+    <body>
+        <h2>b-was Session Clustering Test</h2>
+        
+        <hr>
+        
+        <p><b>Session ID:</b><%= sessionId %></p>
+        <p><b>Session Create Time:</b><%= createTime %></p>
+        <p><b>Last Access Time:</b><%= lastAccess %></p>
+        <p><b>Access Count (세션 유지 확인용):</b><%= count %></p>
+        
+        <p><a href="sessionTest.jsp">[새로고침]</a></p>
+    </body>
+</html>
+```
+
+브라우저 접속 하여 연속 새로고침. `F5`  
+<http://a-site.com/sessionTest.jsp>{:target="_blank"}  
+<http://b-site.com/sessionTest.jsp>{:target="_blank"}
+
+apache의 lb를 통해 session ID 끝에 jvmRoute 값으로 표시된 서버에 연결되어있는것을 확인.  
+  
+현재 a-was1번으로 연결되어있을경우 was-01 서버 a-was `shutdown` 후 새로고침.
+```bash
+/usr/local/tomcat/a-was/bin/shutdown.sh
+```
+
+브라우저 새로고침하면 a-was2번으로 붙는것을 확인 할 수 있다.
+
+b-was도 동일 테스트 하여 세션 클러스터링 설정 마무리.
 
 ## Troubleshooting
 ### could not find /usr/local/apache/bin/apxs  
