@@ -661,6 +661,32 @@ Engine 설정 안에 추가.
       </Cluster>
 ```
 
+### distributable 설정
+
+a-was
+
+```bash
+vi /usr/local/tomcat/a-was/webapps/ROOT/WEB-INF/web.xml
+```
+
+```bash
+  # 맨 아래 추가
+  <distributable/>
+</web-app>
+```
+
+b-was
+
+```bash
+vi /usr/local/tomcat/b-was/webapps/ROOT/WEB-INF/web.xml
+```
+
+```bash
+  # 맨 아래 추가
+  <distributable/>  
+</web-app>
+```
+
 ### 방화벽 설정
 ```bash
 # Membership Port(udp)
@@ -792,9 +818,11 @@ vi /usr/local/tomcat/b-was/webapps/ROOT/sessionTest.jsp
 </html>
 ```
 
-브라우저 접속 하여 연속 새로고침. `F5`  
+브라우저 접속 하여 연속 새로고침. `F5` 
+```text 
 <http://a-site.com/sessionTest.jsp>{:target="_blank"}  
 <http://b-site.com/sessionTest.jsp>{:target="_blank"}
+```
 
 apache의 lb를 통해 session ID 끝에 jvmRoute 값으로 표시된 서버에 연결되어있는것을 확인.  
   
