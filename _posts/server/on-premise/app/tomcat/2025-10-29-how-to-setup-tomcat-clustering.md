@@ -1,8 +1,8 @@
 ---
-title: Tomcat 설치 및 세션 클러스터링 적용
+title: Tomcat 세션 클러스터링 적용
 date: 2025-10-29
 categories: [server, on-premise]
-tags: [tomcat, session clustering, ajp, 톰캣 세션 클러스터링]
+tags: [tomcat, session clustering, ajp, 세션 클러스터링]
 description: Tomcat 세션 클러스터링 적용 post
 permalink: how-to-setup-tomcat-clustering
 ---
@@ -504,11 +504,24 @@ tail -f /usr/local/tomcat/b-was/logs/localhost_access_log.$(date +%Y-%m-%d).txt
 
 ### a-was
 
+`<distributable/>` 세션 복제 활성화.
+```bash
+vi /usr/local/tomcat/a-was/webapps/ROOT/WEB-INF/web.xml
+```
+
+```xml
+  ...
+  <distributable/>
+</web-app>
+```
+
+`jvmRoute` 속성 추가.
+
 ```bash
 vi /usr/local/tomcat/a-was/conf/server.xml
 ```
 
-142번 line 이동, `jvmRoute` 속성 추가.
+142번 line 이동.
 
 ```xml
 <!-- was-01 서버 -->
@@ -566,8 +579,10 @@ Engine 설정 안에 추가.
           <Interceptor className="org.apache.catalina.tribes.group.interceptors.ThroughputInterceptor"/>
         </Channel>
 
+        <!--
         <Valve className="org.apache.catalina.ha.tcp.ReplicationValve"
                filter=".*\.gif|.*\.js|.*\.jpeg|.*\.jpg|.*\.png|.*\.htm|.*\.html|.*\.css|.*\.txt"/>
+        -->
 
         <Deployer className="org.apache.catalina.ha.deploy.FarmWarDeployer"
                   tempDir="/tmp/war-temp/"
@@ -586,11 +601,24 @@ was 서버 여러대로 클러스터링 설정 할 경우 `BackupManager`를 권
 
 ### b-was
 
+`<distributable/>` 세션 복제 활성화.
+```bash
+vi /usr/local/tomcat/a-was/webapps/ROOT/WEB-INF/web.xml
+```
+
+```xml
+  ...
+  <distributable/>
+</web-app>
+```
+
+`jvmRoute` 속성 추가.
+
 ```bash
 vi /usr/local/tomcat/b-was/conf/server.xml
 ```
 
-142번 line 이동, `jvmRoute` 속성 추가.
+142번 line 이동.
 
 ```xml
 <!-- was-01 서버 -->
@@ -648,8 +676,10 @@ Engine 설정 안에 추가.
           <Interceptor className="org.apache.catalina.tribes.group.interceptors.ThroughputInterceptor"/>
         </Channel>
 
+        <!--
         <Valve className="org.apache.catalina.ha.tcp.ReplicationValve"
                filter=".*\.gif|.*\.js|.*\.jpeg|.*\.jpg|.*\.png|.*\.htm|.*\.html|.*\.css|.*\.txt"/>
+        -->
 
         <Deployer className="org.apache.catalina.ha.deploy.FarmWarDeployer"
                   tempDir="/tmp/war-temp/"
@@ -659,32 +689,6 @@ Engine 설정 안에 추가.
 
         <ClusterListener className="org.apache.catalina.ha.session.ClusterSessionListener"/>
       </Cluster>
-```
-
-### distributable 설정
-
-a-was
-
-```bash
-vi /usr/local/tomcat/a-was/webapps/ROOT/WEB-INF/web.xml
-```
-
-```bash
-  # 맨 아래 추가
-  <distributable/>
-</web-app>
-```
-
-b-was
-
-```bash
-vi /usr/local/tomcat/b-was/webapps/ROOT/WEB-INF/web.xml
-```
-
-```bash
-  # 맨 아래 추가
-  <distributable/>  
-</web-app>
 ```
 
 ### 방화벽 설정
@@ -764,8 +768,6 @@ vi /usr/local/tomcat/a-was/webapps/ROOT/sessionTest.jsp
         <hr>
         
         <p><b>Session ID:</b><%= sessionId %></p>
-        <p><b>Session Create Time:</b><%= createTime %></p>
-        <p><b>Last Access Time:</b><%= lastAccess %></p>
         <p><b>Access Count (세션 유지 확인용):</b><%= count %></p>
         
         <p><a href="sessionTest.jsp">[새로고침]</a></p>
@@ -809,8 +811,6 @@ vi /usr/local/tomcat/b-was/webapps/ROOT/sessionTest.jsp
         <hr>
         
         <p><b>Session ID:</b><%= sessionId %></p>
-        <p><b>Session Create Time:</b><%= createTime %></p>
-        <p><b>Last Access Time:</b><%= lastAccess %></p>
         <p><b>Access Count (세션 유지 확인용):</b><%= count %></p>
         
         <p><a href="sessionTest.jsp">[새로고침]</a></p>
@@ -824,16 +824,21 @@ vi /usr/local/tomcat/b-was/webapps/ROOT/sessionTest.jsp
 <http://b-site.com/sessionTest.jsp>{:target="_blank"}
 ```
 
-apache의 lb를 통해 session ID 끝에 jvmRoute 값으로 표시된 서버에 연결되어있는것을 확인.  
-  
-현재 a-was1번으로 연결되어있을경우 was-01 서버 a-was `shutdown` 후 새로고침.
+apache의 lb를 통해 session ID 끝에 표시된 서버에 연결되어있는것을 확인.  
+<img src="/assets/img/posts/server/on-premise/app/tomcat/how-to-setup-tomcat-clustering/sessionTest1.png" width="70%" alt="sessionTest1">
+
+현재 a-was1번으로 연결되어있을경우 was-01서버 a-was `shutdown` 후 새로고침.
 ```bash
 /usr/local/tomcat/a-was/bin/shutdown.sh
 ```
 
-브라우저 새로고침하면 a-was2번으로 붙는것을 확인 할 수 있다.
+브라우저 새로고침하면 세션값 유지 되면서 a-was2번으로 연결되는것을 확인 할 수 있습니다.
 
-b-was도 동일 테스트 하여 세션 클러스터링 설정 마무리.
+<img src="/assets/img/posts/server/on-premise/app/tomcat/how-to-setup-tomcat-clustering/sessionTest2.png" width="70%" alt="sessionTest2">
+
+b-was 동일 테스트. 
+
+🎉세션 클러스터링 적용 완료.
 
 ## Troubleshooting
 ### could not find /usr/local/apache/bin/apxs  
