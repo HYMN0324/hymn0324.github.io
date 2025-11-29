@@ -11,4 +11,6 @@ RUN bundle install
 CMD ["bundle", "exec", "jekyll", "serve", "--host", "0.0.0.0", "--livereload"]
 
 # docker build --no-cache -t github.io .
+# docker images
 # docker run -d -v $PWD:/usr/src/app -p 4000:4000 -p 35729:35729 github.io
+# docker ps
