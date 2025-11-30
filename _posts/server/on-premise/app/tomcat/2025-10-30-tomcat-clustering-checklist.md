@@ -67,7 +67,7 @@ permalink: tomcat-clustering-checklist
     
     > expireSessionsOnShutdown: 여러 대 was서버 중 1대 was가 shutdown 발생하면 모든 was의 세션 만료 처리 설정 옵션으로, `false`값 설정 확인.
     {: .prompt-warning }
-    <img src="/assets/img/posts/server/on-premise/app/tomcat/tomcat-clustering-checklist/image.png" width="80%">
+    <img src="/assets/img/posts/server/on-premise/app/tomcat/tomcat-clustering-checklist/image.png" width="80%" alt="expireSessionsOnShutdown-explain">
     매뉴얼 참조 url : [https://tomcat.apache.org/tomcat-9.0-doc/...](<https://tomcat.apache.org/tomcat-9.0-doc/config/cluster-manager.html#org.apache.catalina.ha.session.DeltaManager_Attributes>){:target="_blank"}
     
 5. webapps/ROOT/WEB-INF/web.xml - `<distributable/>` 세션 복제 활성화.
