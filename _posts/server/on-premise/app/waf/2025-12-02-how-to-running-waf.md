@@ -1,10 +1,10 @@
 ---
-title: WAF(ModSecurity) + HAProxy 연동
+title: ModSecurity + HAProxy WAF 구성
 date: 2025-12-02
 categories: [server, on-premise]
-tags: [WAF, ModSecurity, OWASP, HAproxy]
-description: WAF(ModSecurity) + HAProxy 연동 post
-permalink: how-to-assoc-waf-haproxy
+tags: [WAF, ModSecurity, OWASP, HAProxy]
+description: ModSecurity + HAProxy WAF 구성 post
+permalink: how-to-assoc-modsecurity-haproxy
 ---
 
 > update 중. . .
@@ -13,14 +13,44 @@ permalink: how-to-assoc-waf-haproxy
 ### post 이력
 * 12/02: waf vm 생성하여 haproxy + modsecurity 구성 시도
 * 12/03: modsecurity, spoa-modsecurity, OWASP 설치
+* 12/04: haproxy 설치
 
-## Modsecurity 설치
+## 기본 패키지 설치
+
+```bash
+dnf install wget tar gcc gcc-c++ make net-tools
+```
+
+## HAProxy 설치
 
 ### 의존 패키지 설치
 
 ```bash
-dnf install wget tar gcc gcc-c++ make net-tools \
-            curl-devel libxml2-devel openssl-devel pcre-devel pcre2-devel
+dnf install openssl-devel pcre2-devel
+dnf --enablerepo=crb install lua-devel
+```
+
+### 다운로드 및 설치
+
+```bash
+wget https://github.com/haproxy/haproxy/archive/refs/tags/v3.3.0.tar.gz
+tar zxf v3.3.0.tar.gz
+cd haproxy-3.3.0/
+```
+
+```bash
+make -j$(nproc) TARGET=linux-glibc \ 
+USE_OPENSSL=1 USE_QUIC=1 USE_QUIC_OPENSSL_COMPAT=1 USE_LUA=1 USE_PCRE2=1
+
+make install PREFIX=/usr/local/haproxy/
+```
+
+## modsecurity 설치
+
+### 의존 패키지 설치
+
+```bash
+dnf install curl-devel libxml2-devel openssl-devel pcre-devel pcre2-devel
 
 dnf --enablerepo=crb install lua-devel yajl-devel \
                              lmdb-devel libmaxminddb-devel doxygen
