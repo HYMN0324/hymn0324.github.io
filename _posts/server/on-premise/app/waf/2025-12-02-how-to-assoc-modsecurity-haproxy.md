@@ -15,6 +15,7 @@ permalink: how-to-assoc-modsecurity-haproxy
 * 12/03: modsecurity, spoa-modsecurity, OWASP 설치
 * 12/04: haproxy 설치
 * 12/05: haproxy 설정
+* 12/07: certbot 설치 및 도메인 설정
 
 ## 기본 패키지 설치
 
@@ -127,7 +128,7 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-```
+```bash
 systemctl daemon-reload
 systemctl start haproxy
 systemctl status haproxy
@@ -248,3 +249,68 @@ include /usr/local/crs4/rules/RESPONSE-954-DATA-LEAKAGES-IIS.conf
 include /usr/local/crs4/rules/RESPONSE-959-BLOCKING-EVALUATION.conf
 include /usr/local/crs4/rules/RESPONSE-980-CORRELATION.conf
 ```
+
+## 무료 ssl 적용
+
+### certbot 설치
+
+```bash
+dnf install certbot
+systemctl start certbot-renew.timer
+```
+
+### 방화벽 설정
+
+```bash
+firewall-cmd --add-port=8888/tcp --permanent
+firewall-cmd --reload
+firewall-cmd --list-all
+```
+외부 통신 설정 과정은 생략.
+
+### haproxy 설정
+
+```bash
+vi /usr/local/haproxy/etc/haproxy.cfg
+```
+
+```text
+frontend http-in
+    bind *:80
+    mode http
+
+    # Let's Encrypt Validation Path
+    acl acme_challenge path_beg /.well-known/acme-challenge/
+
+    # ACME
+    use_backend acme_a if acme_challenge
+
+    # Host matching
+    acl host_a hdr(host) -i a-site.com
+
+    # common request
+    use_backend web_a if host_a
+
+backend acme_a
+    mode http
+    server certbot 127.0.0.1:8888
+```
+
+```bash
+/usr/local/haproxy/sbin/haproxy -c -f /usr/local/haproxy/etc/haproxy.cfg
+
+systemctl restart haproxy
+systemctl status haproxy
+```
+
+
+### 인증서 생성
+
+```bash
+mkdir -p /var/www/letsencrypt
+
+certbot certonly --webroot -w /var/www/letsencrypt --http-01-port 8888 -d a-site.com
+```
+
+> 무중단으로 인증서 생성 및 갱신 하려면 80번포트가 아닌 다른포트로 사용하여 인증해야합니다.
+{: .prompt-info}
