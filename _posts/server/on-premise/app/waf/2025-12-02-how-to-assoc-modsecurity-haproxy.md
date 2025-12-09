@@ -17,6 +17,7 @@ permalink: how-to-assoc-modsecurity-haproxy
 * 12/05: haproxy 설정
 * 12/07: certbot 설치 및 도메인 설정, NAT 설정 - post 제외
 * 12/08: SSL 발급 - cloudflare API 사용, SSL 자동화 설정
+* 12/09: haproxy + modsecurity 연동 설정 중
 
 ## 기본 패키지 설치
 
@@ -174,7 +175,7 @@ make install
 ```bash
 mkdir /usr/local/modsecurity/conf/
 
-cp modsecurity.conf-recommended /usr/local/modsecurity/conf/
+cp modsecurity.conf-recommended /usr/local/modsecurity/conf/modsecurity.conf
 cp unicode.mapping /usr/local/modsecurity/conf/
 ```
 
@@ -204,9 +205,41 @@ make install
 ll /usr/local/modsecurity/bin/modsecurity
 ```
 
-## OWASP CRS 설치
+### 시스템 데몬 적용
 
-### 다운로드 및 설치
+```bash
+vi /etc/systemd/system/modsecurity.service
+```
+
+```text
+[Unit]
+Description=Modsecurity Standalone
+After=network.target
+
+[Service]
+Environment=LD_LIBRARY_PATH=/usr/local/modsecurity/lib
+Environment=CONFIG=/usr/local/modsecurity/conf/modsecurity.conf
+ExecStart=/usr/local/modsecurity/bin/modsecurity -f $CONFIG
+ExecReload=/bin/kill -USR2 $MAINPID
+ExecStop=/bin/kill -TERM $MAINPID
+Restart=always
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+systemctl daemon-reload
+
+systemctl start modsecurity
+systemctl status modsecurity
+systemctl enable modsecurity
+```
+
+## OWASP CRS 4.0 적용
+
+### 다운로드 및 적용
 
 ```bash
 wget https://github.com/coreruleset/coreruleset/archive/refs/tags/v4.0.0.tar.gz
@@ -217,38 +250,71 @@ mv coreruleset-4.0.0 /usr/local/crs4
 cd /usr/local/crs4/
 
 cp crs-setup.conf.example crs-setup.conf
-```
-### Modsecurity 적용
 
-```bash
 vi /usr/local/modsecurity/conf/modsecurity.conf
 ```
 
+맨 아래 추가.
 ```text
-include /usr/local/crs4/crs-setup.conf
-include /usr/local/crs4/rules/REQUEST-901-INITIALIZATION.conf
-include /usr/local/crs4/rules/REQUEST-905-COMMON-EXCEPTIONS.conf
-include /usr/local/crs4/rules/REQUEST-910-IP-REPUTATION.conf
-include /usr/local/crs4/rules/REQUEST-911-METHOD-ENFORCEMENT.conf
-include /usr/local/crs4/rules/REQUEST-912-DOS-PROTECTION.conf
-include /usr/local/crs4/rules/REQUEST-913-SCANNER-DETECTION.conf
-include /usr/local/crs4/rules/REQUEST-920-PROTOCOL-ENFORCEMENT.conf
-include /usr/local/crs4/rules/REQUEST-921-PROTOCOL-ATTACK.conf
-include /usr/local/crs4/rules/REQUEST-930-APPLICATION-ATTACK-LFI.conf
-include /usr/local/crs4/rules/REQUEST-931-APPLICATION-ATTACK-RFI.conf
-include /usr/local/crs4/rules/REQUEST-932-APPLICATION-ATTACK-RCE.conf
-include /usr/local/crs4/rules/REQUEST-933-APPLICATION-ATTACK-PHP.conf
-include /usr/local/crs4/rules/REQUEST-941-APPLICATION-ATTACK-XSS.conf
-include /usr/local/crs4/rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf
-include /usr/local/crs4/rules/REQUEST-943-APPLICATION-ATTACK-SESSION-FIXATION.conf
-include /usr/local/crs4/rules/REQUEST-949-BLOCKING-EVALUATION.conf
-include /usr/local/crs4/rules/RESPONSE-950-DATA-LEAKAGES.conf
-include /usr/local/crs4/rules/RESPONSE-951-DATA-LEAKAGES-SQL.conf
-include /usr/local/crs4/rules/RESPONSE-952-DATA-LEAKAGES-JAVA.conf
-include /usr/local/crs4/rules/RESPONSE-953-DATA-LEAKAGES-PHP.conf
-include /usr/local/crs4/rules/RESPONSE-954-DATA-LEAKAGES-IIS.conf
-include /usr/local/crs4/rules/RESPONSE-959-BLOCKING-EVALUATION.conf
-include /usr/local/crs4/rules/RESPONSE-980-CORRELATION.conf
+Include /usr/local/crs4/crs-setup.conf
+Include /usr/local/crs4/rules/*.conf
+```
+
+## HAProxy + ModSecurity 연동
+
+```bash
+vi /usr/local/haproxy/etc/spoe-modsecurity.conf
+```
+
+```text
+[modsecurity]
+    spoe-agent modsecurity-agent
+    messages check-request
+    option var-prefix modsec
+    timeout hello 100ms
+    timeout idle 30s
+    timeout processing 15ms
+    use-backend spoe-modsecurity
+    spoe-message check-request
+    args unique-id method path query req.ver req.hdrs_bin req.body_size req.body
+    event on-frontend-http-request
+```
+
+```bash
+vi /usr/local/haproxy/etc/haproxy.cfg
+```
+
+```text
+frontend http-in
+    bind *:443 ssl crt /usr/local/haproxy/certs/
+    mode http
+
+    # 추가
+    unique-id-format %{+X}o\ %ci:%cp_%fi:%fp_%Ts_%rt:%pid
+    unique-id-header X-Unique-ID
+    log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[unique-id]"
+
+    # 추가
+    filter spoe engine modsecurity config /usr/local/haproxy/etc/spoe-modsecurity.conf
+    http-request deny if { var(txn.modsec.code) -m int gt 0 }
+
+    acl host_a hdr(host) -i a-site.com
+
+    use_backend web_a if host_a
+
+# 추가
+
+backend spoe-modsecurity
+    mode tcp
+    balance roundrobin
+    timeout connect 5s
+    timeout server 3m
+    server modsec1 127.0.0.1:12345
+```
+
+```bash
+systemctl restart haproxy
+systemctl status haproxy
 ```
 
 ## 무료 SSL 적용
