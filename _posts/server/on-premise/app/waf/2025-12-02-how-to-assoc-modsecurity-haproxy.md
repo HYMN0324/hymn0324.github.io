@@ -17,7 +17,9 @@ permalink: how-to-assoc-modsecurity-haproxy
 * 12/05: haproxy 설정
 * 12/07: certbot 설치 및 도메인 설정, NAT 설정 - post 제외
 * 12/08: SSL 발급 - cloudflare API 사용, SSL 자동화 설정
-* 12/09: haproxy + modsecurity 연동 설정 중
+* 12/09: haproxy + modsecurity 연동 설정 70%
+* 12/10: haproxy + modsecurity 연동 설정 및 테스트 완료
+* 12/11: 글 보완 예정
 
 ## 기본 패키지 설치
 
@@ -260,7 +262,20 @@ Include /usr/local/crs4/crs-setup.conf
 Include /usr/local/crs4/rules/*.conf
 ```
 
+modsecurity 재시작.
+
+```bash
+systemctl restart modsecurity
+systemctl status modsecurity
+```
+
 ## HAProxy + ModSecurity 연동
+
+### spoe 설정
+
+spoa-modsecurity 설치파일 중 README 파일 참조하여 설정 하였습니다.
+
+<img src="/assets/img/posts/server/on-premise/app/waf/how-to-assoc-modsecurity-haproxy/spoa-modsecurity-config.png" width="100%" alt="spoa-modsecurity-config">
 
 ```bash
 vi /usr/local/haproxy/etc/spoe-modsecurity.conf
@@ -268,17 +283,21 @@ vi /usr/local/haproxy/etc/spoe-modsecurity.conf
 
 ```text
 [modsecurity]
-    spoe-agent modsecurity-agent
+
+spoe-agent modsecurity-agent
     messages check-request
     option var-prefix modsec
-    timeout hello 100ms
-    timeout idle 30s
+    timeout hello      100ms
+    timeout idle       30s
     timeout processing 15ms
     use-backend spoe-modsecurity
-    spoe-message check-request
-    args unique-id method path query req.ver req.hdrs_bin req.body_size req.body
+
+ spoe-message check-request
+    args unique-id src src_port dst dst_port method path query req.ver req.hdrs_bin req.body_size req.body
     event on-frontend-http-request
 ```
+
+### haproxy 설정
 
 ```bash
 vi /usr/local/haproxy/etc/haproxy.cfg
@@ -286,30 +305,32 @@ vi /usr/local/haproxy/etc/haproxy.cfg
 
 ```text
 frontend http-in
-    bind *:443 ssl crt /usr/local/haproxy/certs/
-    mode http
+    bind *:80
+
+    acl host_a hdr(host) -i a-site.com
+    use_backend web_a if host_a
 
     # 추가
+    option http-buffer-request
+    filter spoe engine modsecurity config /usr/local/haproxy/etc/spoe-modsecurity.conf
+
     unique-id-format %{+X}o\ %ci:%cp_%fi:%fp_%Ts_%rt:%pid
     unique-id-header X-Unique-ID
     log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[unique-id]"
-
-    # 추가
-    filter spoe engine modsecurity config /usr/local/haproxy/etc/spoe-modsecurity.conf
-    http-request deny if { var(txn.modsec.code) -m int gt 0 }
-
-    acl host_a hdr(host) -i a-site.com
-
-    use_backend web_a if host_a
+    # 추가 끝
 
 # 추가
-
 backend spoe-modsecurity
     mode tcp
     balance roundrobin
     timeout connect 5s
     timeout server 3m
     server modsec1 127.0.0.1:12345
+# 추가 끝
+
+backend web_a
+    mode http
+    server web1 172.16.3.1:80 check
 ```
 
 ```bash
@@ -317,7 +338,19 @@ systemctl restart haproxy
 systemctl status haproxy
 ```
 
-## 무료 SSL 적용
+### 테스트
+
+```bash
+curl -I "https://a-site.com/?cmd=/bin/pkexec"
+
+tail -n 1 /var/log/modsec_audit.log
+```
+
+CRS 감지완료
+<img src="/assets/img/posts/server/on-premise/app/waf/how-to-assoc-modsecurity-haproxy/haproxy-modsecurity-test.png" width="100%" alt="haproxy-modsecurity-test">
+
+
+## SSL 적용
 
 SSL 발급 방법: DNS TXT 인증
 
@@ -345,9 +378,9 @@ curl "https://api.cloudflare.com/client/v4/user/tokens/verify" -H "Authorization
 Token 값 저장.
 
 ```bash
-mkdir /root/.cloudflare
+mkdir ~/.cloudflare
 
-vi /root/.cloudflare/cloudflare.ini
+vi ~/.cloudflare/cloudflare.ini
 ```
 
 ```text
@@ -355,14 +388,14 @@ dns_cloudflare_api_token = Token값
 ```
 
 ```bash
-chmod 600 /root/.cloudflare/cloudflare.ini
+chmod 600 ~/.cloudflare/cloudflare.ini
 ```
 
 ### SSL 발급 - DNS TXT 인증
 
 ```bash
 certbot certonly --dns-cloudflare \
-  --dns-cloudflare-credentials /root/.cloudflare/cloudflare.ini -d a-site.com
+  --dns-cloudflare-credentials ~/.cloudflare/cloudflare.ini -d a-site.com
 
 # SSL 인증서 생성 확인
 ll /etc/letsencrypt/live/a-site.com/
@@ -467,3 +500,7 @@ certbot renew --dry-run
 ```
 
 <img src="/assets/img/posts/server/on-premise/app/waf/how-to-assoc-modsecurity-haproxy/certbot-renew-dry-run.png" width="70%" alt="certbot-renew-dry-run">
+
+## 참조
+haproxy spoe - <https://www.haproxy.com/blog/extending-haproxy-with-the-stream-processing-offload-engine>{:target="_blank"}  
+<https://www.haproxy.com/blog/scalable-waf-protection-with-haproxy-and-apache-with-modsecurity>{:target="_blank"}
