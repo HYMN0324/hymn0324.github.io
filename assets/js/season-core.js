@@ -20,16 +20,43 @@ function loadJS(src, callback) {
   document.body.appendChild(script);
 }
 
+function detectThemeMode() {
+  const html = document.documentElement;
+  const attr = html.getAttribute("data-mode");
+
+  if (attr === "light" || attr === "dark") {
+    return attr; // 사용자 설정 우선
+  }
+
+  // OS 설정
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  return prefersDark ? "dark" : "light";
+}
+
+/* 
+  ----------- 여기서부터 변경된 핵심 부분 -----------
+*/
 (function initSeason() {
   const season = getSeason();
 
-  // <html data-season="winter"> 적용
+  // 계절 적용
   document.documentElement.dataset.season = season;
+
+  // 테마 감지 (light / dark)
+  const theme = detectThemeMode();
+
+  // <html> 에 data-mode 가 없으면 자동으로 추가
+  if (!document.documentElement.hasAttribute("data-mode")) {
+    document.documentElement.setAttribute("data-mode", theme);
+  }
+
+  // winter.js 에 전달할 글로벌 변수 설정
+  window.__seasonTheme = theme;
 
   // CSS 로드
   loadCSS(`/assets/seasons/${season}/${season}.css`);
 
-  // JS 로드 (동기 방식)
+  // JS 로드
   loadJS(`/assets/seasons/${season}/${season}.js`, function () {
     if (window.initSeason) {
       window.initSeason();
