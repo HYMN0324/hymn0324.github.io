@@ -1,0 +1,15 @@
+/* 겨울 전용 스타일 */
+html[data-season="winter"] {
+  position: relative;
+}
+
+/* 눈 애니메이션 캔버스 */
+#winter-snow-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none; /* 클릭 방해 X */
+  z-index: 9999;
+}
