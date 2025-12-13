@@ -20,8 +20,6 @@ window.initSeason = function () {
   function getSnowColor() {
     const theme = window.__seasonTheme || "light";
 
-    console.log(theme);
-
     return theme === "dark"
       ? "rgba(255, 251, 251, 1)"     // Dark mode
       : "rgba(221, 221, 221, 0.89)"; // Light mode (더 진한 회색)
