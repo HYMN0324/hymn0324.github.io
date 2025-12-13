@@ -7,6 +7,23 @@ description: HAProxy + ModSecurity WAF 구성 post
 permalink: how-to-assoc-haproxy-modsecurity
 ---
 
+## 설치 정보
+
+| 구분 | 버전 |
+| --- | --- |
+| OS | Rocky 9.6 |
+| HAProxy | HAProxy 3.3.0 |
+| ModSecurity | ModSecurity 3.0.14 |
+| SPOA | SPOA-ModSecurity3 |
+| OWASP CRS | CRS 4.0 |
+
+## 서버 정보
+
+| 구분 | IP Address |
+| --- | --- |
+| HAProxy server | 172.16.2.6 |
+| web server | 172.16.3.1 |
+
 ## 기본 패키지 설치
 
 ```bash
@@ -82,6 +99,15 @@ backend web_a
 ```bash
 # Syntax 체크
 /usr/local/haproxy/sbin/haproxy -c -f /usr/local/haproxy/etc/haproxy.cfg
+```
+
+### 방화벽 설정
+
+```bash
+firewall-cmd --add-port=80/tcp --permanent
+firewall-cmd --add-port=443/tcp --permanent
+firewall-cmd --reload
+firewall-cmd --list-all
 ```
 
 ### 시스템 데몬 등록
@@ -227,8 +253,6 @@ systemctl enable modsecurity
 
 ## OWASP CRS 4.0 적용
 
-### 다운로드 및 적용
-
 ```bash
 wget https://github.com/coreruleset/coreruleset/archive/refs/tags/v4.0.0.tar.gz
 
@@ -327,165 +351,13 @@ systemctl status haproxy
 ### 테스트
 
 ```bash
-curl -I "https://a-site.com/?cmd=/bin/pkexec"
+curl -I "http://a-site.com/?cmd=/bin/pkexec"
 
 tail -n 1 /var/log/modsec_audit.log
 ```
 
 CRS 감지완료
 <img src="/assets/img/posts/server/on-premise/app/waf/how-to-assoc-modsecurity-haproxy/haproxy-modsecurity-test.png" width="100%" alt="haproxy-modsecurity-test">
-
-
-## SSL 적용
-
-SSL 발급 방법: DNS TXT 인증
-
-cloudflare 기준으로 post 작성하겠습니다.
-
-### certbot 설치
-
-```bash
-dnf install certbot
-systemctl start certbot-renew.timer
-```
-
-### cloudflare 연동
-
-API Token 생성 과정 생략.  
-DNS TXT 인증 기반으로 SSL 생성하므로, cloudflare에 있는 DNS를 수정 할 수 있는 API Token을 먼저 생성해야합니다.(추후 post 예정)
-
-```bash
-dnf install python3-certbot-dns-cloudflare
-
-# API Token 인증 테스트(2025-12-08기준 url)
-curl "https://api.cloudflare.com/client/v4/user/tokens/verify" -H "Authorization: Bearer Token값
-```
-
-Token 값 저장.
-
-```bash
-mkdir ~/.cloudflare
-
-vi ~/.cloudflare/cloudflare.ini
-```
-
-```text
-dns_cloudflare_api_token = Token값
-```
-
-```bash
-chmod 600 ~/.cloudflare/cloudflare.ini
-```
-
-### SSL 발급 - DNS TXT 인증
-
-```bash
-certbot certonly --dns-cloudflare \
-  --dns-cloudflare-credentials ~/.cloudflare/cloudflare.ini -d a-site.com
-
-# SSL 인증서 생성 확인
-ll /etc/letsencrypt/live/a-site.com/
-```
-
-### haproxy 전용 SSL pem 파일 생성
-
-이유에 대한 내용은 update 예정.
-
-```bash
-mkdir /usr/local/haproxy/certs
-
-chmod 755 /usr/local/haproxy/certs
-
-# pem 파일 생성
-cat /etc/letsencrypt/live/a-site.com/fullchain.pem /etc/letsencrypt/live/a-site.com/privkey.pem > /usr/local/haproxy/certs/a-site.com.pem
-
-# pem 파일 확인
-ll /usr/local/haproxy/certs/a-site.com.pem
-```
-
-### haproxy HTTPS 설정
-
-```bash
-vi /usr/local/haproxy/etc/haproxy.cfg
-```
-
-```text
-frontend http-in
-    bind *:443 ssl crt /usr/local/haproxy/certs/
-    mode http
-
-    # Host matching
-    acl host_a hdr(host) -i a-site.com
-
-    # common request
-    use_backend web_a if host_a
-
-backend web_a
-    mode http
-    server web1 172.16.3.1:80 check
-```
-
-haproxy 재기동.
-
-```bash
-# Syntax 체크
-/usr/local/haproxy/sbin/haproxy -c -f /usr/local/haproxy/etc/haproxy.cfg
-
-systemctl restart haproxy
-```
-
-### 방화벽 설정
-
-```bash
-firewall-cmd --add-port=443/tcp --permanent
-firewall-cmd --reload
-firewall-cmd --list-all
-```
-
-브라우저 접속 확인.
-```
-https://a-site.com
-```
-
-### 인증서 자동 갱신
-
-certbot으로 자동 인증서 갱신 기능 적용해보도록 하겠습니다.
-
-```bash
-# SSL 발급 - DNS TXT 인증, haproxy 전용 SSL pem 파일 생성 작업 기준 스크립트 작성
-vi /etc/letsencrypt/renewal-hooks/deploy/a-site.com.sh
-```
-
-```bash
-#!/bin/bash
-
-# .sh 확장자 제외한 파일명으로 도메인 명 동적 할당
-DOMAIN=$(basename "$0" .sh)
-LETS_ENCRYPT_PATH="/etc/letsencrypt/live/$DOMAIN"
-HAPROXY_CERTS_PATH="/usr/local/haproxy/certs"
-
-# ssl 인증서 생성
-cat "$LETS_ENCRYPT_PATH/fullchain.pem" "$LETS_ENCRYPT_PATH/privkey.pem" > "$HAPROXY_CERTS_PATH/$DOMAIN.pem"
-
-chmod 600 "$HAPROXY_CERTS_PATH/$DOMAIN.pem"
-chown root:root "$HAPROXY_CERTS_PATH/$DOMAIN.pem"
-
-# 무중단 반영으로 reload
-systemctl reload haproxy
-```
-
-```bash
-chmod 700 /etc/letsencrypt/renewal-hooks/deploy/a-site.com.sh
-ll /etc/letsencrypt/renewal-hooks/deploy/a-site.com.sh
-```
-
-인증서 갱신 테스트 `--dry-run`
-
-```bash
-certbot renew --dry-run
-```
-
-<img src="/assets/img/posts/server/on-premise/app/waf/how-to-assoc-modsecurity-haproxy/certbot-renew-dry-run.png" width="70%" alt="certbot-renew-dry-run">
 
 ## 참조
 haproxy spoe - <https://www.haproxy.com/blog/extending-haproxy-with-the-stream-processing-offload-engine>{:target="_blank"}  
