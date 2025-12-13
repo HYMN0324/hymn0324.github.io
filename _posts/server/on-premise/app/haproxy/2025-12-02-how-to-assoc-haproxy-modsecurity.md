@@ -285,7 +285,7 @@ systemctl status modsecurity
 
 spoa-modsecurity `README` 파일 참조하여 설정 하였습니다.
 
-<img src="/assets/img/posts/server/on-premise/app/waf/how-to-assoc-modsecurity-haproxy/spoa-modsecurity-config.png" width="100%" alt="spoa-modsecurity-config">
+<img src="/assets/img/posts/server/on-premise/app/haproxy/how-to-assoc-haproxy-modsecurity/spoa-modsecurity-config.png" width="100%" alt="spoa-modsecurity-config">
 
 ```bash
 vi /usr/local/haproxy/etc/spoe-modsecurity.conf
@@ -357,7 +357,7 @@ tail -n 1 /var/log/modsec_audit.log
 ```
 
 CRS 감지완료
-<img src="/assets/img/posts/server/on-premise/app/waf/how-to-assoc-modsecurity-haproxy/haproxy-modsecurity-test.png" width="100%" alt="haproxy-modsecurity-test">
+<img src="/assets/img/posts/server/on-premise/app/haproxy/how-to-assoc-haproxy-modsecurity/haproxy-modsecurity-test.png" width="100%" alt="haproxy-modsecurity-test">
 
 ## 참조
 haproxy spoe - <https://www.haproxy.com/blog/extending-haproxy-with-the-stream-processing-offload-engine>{:target="_blank"}  
