@@ -1,25 +1,11 @@
 ---
-title: ModSecurity + HAProxy WAF 구성
+title: HAProxy + ModSecurity WAF 구성
 date: 2025-12-02
 categories: [server, on-premise]
-tags: [WAF, ModSecurity, OWASP, HAProxy]
-description: ModSecurity + HAProxy WAF 구성 post
-permalink: how-to-assoc-modsecurity-haproxy
+tags: [HAProxy, ModSecurity, OWASP, WAF]
+description: HAProxy + ModSecurity WAF 구성 post
+permalink: how-to-assoc-haproxy-modsecurity
 ---
-
-> update 중. . .
-{: .prompt-warning}
-
-### post 이력
-* 12/02: waf vm 생성하여 haproxy + modsecurity 구성 시도
-* 12/03: modsecurity, spoa-modsecurity, OWASP 설치
-* 12/04: haproxy 설치
-* 12/05: haproxy 설정
-* 12/07: certbot 설치 및 도메인 설정, NAT 설정 - post 제외
-* 12/08: SSL 발급 - cloudflare API 사용, SSL 자동화 설정
-* 12/09: haproxy + modsecurity 연동 설정 70%
-* 12/10: haproxy + modsecurity 연동 설정 및 테스트 완료
-* 12/11: 글 보완 예정
 
 ## 기본 패키지 설치
 
@@ -94,7 +80,7 @@ backend web_a
 ```
 
 ```bash
-# 문법체크
+# Syntax 체크
 /usr/local/haproxy/sbin/haproxy -c -f /usr/local/haproxy/etc/haproxy.cfg
 ```
 
@@ -106,7 +92,7 @@ vi /etc/systemd/system/haproxy.service
 
 ```text
 [Unit]
-Description=HAProxy Load Balancer
+Description=HAProxy 3.3
 After=network.target
 
 [Service]
@@ -273,7 +259,7 @@ systemctl status modsecurity
 
 ### spoe 설정
 
-spoa-modsecurity 설치파일 중 README 파일 참조하여 설정 하였습니다.
+spoa-modsecurity `README` 파일 참조하여 설정 하였습니다.
 
 <img src="/assets/img/posts/server/on-premise/app/waf/how-to-assoc-modsecurity-haproxy/spoa-modsecurity-config.png" width="100%" alt="spoa-modsecurity-config">
 
@@ -292,7 +278,7 @@ spoe-agent modsecurity-agent
     timeout processing 15ms
     use-backend spoe-modsecurity
 
- spoe-message check-request
+spoe-message check-request
     args unique-id src src_port dst dst_port method path query req.ver req.hdrs_bin req.body_size req.body
     event on-frontend-http-request
 ```
@@ -503,4 +489,4 @@ certbot renew --dry-run
 
 ## 참조
 haproxy spoe - <https://www.haproxy.com/blog/extending-haproxy-with-the-stream-processing-offload-engine>{:target="_blank"}  
-<https://www.haproxy.com/blog/scalable-waf-protection-with-haproxy-and-apache-with-modsecurity>{:target="_blank"}
+               <https://www.haproxy.com/blog/scalable-waf-protection-with-haproxy-and-apache-with-modsecurity>{:target="_blank"}
