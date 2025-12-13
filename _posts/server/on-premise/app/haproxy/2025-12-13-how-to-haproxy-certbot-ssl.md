@@ -156,4 +156,4 @@ ll /etc/letsencrypt/renewal-hooks/deploy/a-site.com.sh
 certbot renew --dry-run
 ```
 
-<img src="/assets/img/posts/server/on-premise/app/waf/how-to-assoc-modsecurity-haproxy/certbot-renew-dry-run.png" width="70%" alt="certbot-renew-dry-run">
+<img src="/assets/img/posts/server/on-premise/app/haproxy/how-to-haproxy-certbot-ssl-cloudflare/certbot-renew-dry-run.png" width="70%" alt="certbot-renew-dry-run">
