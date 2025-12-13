@@ -1,6 +1,10 @@
 window.initSeason = function () {
+  // 중복 생성 방지
   if (document.getElementById("winter-snow-canvas")) return;
 
+  /* =========================
+   *  Canvas Setup
+   * ========================= */
   const canvas = document.createElement("canvas");
   canvas.id = "winter-snow-canvas";
   document.body.appendChild(canvas);
@@ -10,16 +14,32 @@ window.initSeason = function () {
   let width = canvas.width = window.innerWidth;
   let height = canvas.height = window.innerHeight;
 
-  /* 테마 판별 */
-  const theme = window.__seasonTheme || "light";
-  const snowColor =
-    theme === "dark"
-      ? "rgba(235, 235, 235, 1)"  // dark 모드용 soft white
-      : "rgba(162, 162, 162, 0.77)";  // light 모드용 pure white
+  /* =========================
+   *  Snow Color (Theme Aware)
+   * ========================= */
+  function getSnowColor() {
+    const theme = window.__seasonTheme || "light";
 
-  /* 눈 파라미터 */
+    console.log(theme);
+
+    return theme === "dark"
+      ? "rgba(255, 251, 251, 1)"     // Dark mode
+      : "rgba(221, 221, 221, 0.89)"; // Light mode (더 진한 회색)
+  }
+
+  let currentSnowColor = getSnowColor();
+
+  // 테마 변경 실시간 반영
+  window.addEventListener("season:theme-change", () => {
+    currentSnowColor = getSnowColor();
+  });
+
+  /* =========================
+   *  Snow Parameters (Soft)
+   * ========================= */
   const flakes = [];
-  const FLAKE_COUNT = 35;
+
+  const FLAKE_COUNT = 35;   // 은은한 눈
   const MIN_SPEED = 0.2;
   const MAX_SPEED = 0.5;
   const MIN_SIZE = 1.0;
@@ -29,35 +49,25 @@ window.initSeason = function () {
     for (let i = 0; i < FLAKE_COUNT; i++) {
       flakes.push({
         x: Math.random() * width,
-        y: Math.random() * height * -1, // 첫눈 효과: 화면 위에서 시작
+        y: Math.random() * height * -1, // 첫눈 효과
         r: Math.random() * (MAX_SIZE - MIN_SIZE) + MIN_SIZE,
         speed: Math.random() * (MAX_SPEED - MIN_SPEED) + MIN_SPEED,
-        drift: Math.random() * 0.5 + 0.1,
+        drift: Math.random() * 0.5 + 0.1
       });
     }
   }
 
+  /* =========================
+   *  Resize Handling
+   * ========================= */
   window.addEventListener("resize", () => {
     width = canvas.width = window.innerWidth;
     height = canvas.height = window.innerHeight;
   });
 
-  function drawSnow() {
-    ctx.clearRect(0, 0, width, height);
-
-    ctx.fillStyle = snowColor;
-    ctx.beginPath();
-
-    flakes.forEach((f) => {
-      ctx.moveTo(f.x, f.y);
-      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
-    });
-
-    ctx.fill();
-    update();
-    requestAnimationFrame(drawSnow);
-  }
-
+  /* =========================
+   *  Draw & Update Loop
+   * ========================= */
   let angle = 0;
 
   function update() {
@@ -74,6 +84,25 @@ window.initSeason = function () {
     });
   }
 
+  function drawSnow() {
+    ctx.clearRect(0, 0, width, height);
+
+    ctx.fillStyle = currentSnowColor;
+    ctx.beginPath();
+
+    flakes.forEach((f) => {
+      ctx.moveTo(f.x, f.y);
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+    });
+
+    ctx.fill();
+    update();
+    requestAnimationFrame(drawSnow);
+  }
+
+  /* =========================
+   *  Init
+   * ========================= */
   createFlakes();
   drawSnow();
 };
