@@ -58,26 +58,14 @@ vi haproxy.cfg
 ```
 
 ```text
-global
-    log /dev/log    local0
-    log /dev/log    local1 notice
-    chroot /usr/local/haproxy
-    maxconn 4000
-    user nobody
-    group nobody
+... global 설정 내용 생략
 
-defaults
-    log     global
-    mode    http
-    option  dontlognull
-    timeout connect 5000
-    timeout client  50000
-    timeout server  50000
+... defaults 설정 내용 생략
 
-frontend a-site.com_https_passthrough
-    bind *:443
+frontend a-site.com
+    bind :443
 
-    # 패킷만 전달하므로 tcp mode
+    # 패킷만 전달하므로 tcp 설정
     mode tcp
     option tcplog
 
@@ -87,6 +75,7 @@ frontend a-site.com_https_passthrough
     default_backend web_a
 
 backend web_a
+    # 패킷만 전달하므로 tcp 설정
     mode tcp
     server web1 172.16.3.1:443
 ```
@@ -167,5 +156,12 @@ tail -f /var/log/httpd/a-site.com_ssl-access_log-$(date +%Y%m%d)
 ```
 
 ### WAF SSL Termination
+
+Client가 HTTPS 요청시 WAF에서 암호화된 패킷을 복호화하여 WAF 탐지 수행 및 웹 서버로 HTTP로 전달 하는 기능을 수행합니다.
+> WAF가 탐지 설정이 되어있을경우에만 탐지 수행 할 뿐더러, 웹 서버로 전달하는것도 상황에 따라 전달 여부가 달라집니다.
+{: .prompt-info}
+
+
+
 
 ### TLS Bridging(Re-encryption)

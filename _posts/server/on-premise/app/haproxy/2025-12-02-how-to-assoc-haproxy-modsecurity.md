@@ -57,6 +57,9 @@ make install PREFIX=/usr/local/haproxy/
 ### 기본 설정
 
 ```bash
+# haproxy 실행 전용 계정 생성
+useradd -r -s /sbin/nologin haproxy
+
 cd /usr/local/haproxy/
 
 mkdir etc/
@@ -69,31 +72,53 @@ vi etc/haproxy.cfg
 
 ```text
 global
-    log /dev/log    local0
-    log /dev/log    local1 notice
-    chroot /usr/local/haproxy
-    maxconn 4000
-    user nobody
-    group nobody
-    # daemon
+        # all file names are relative to the directory containing this config
+        # file by default
+        default-path config
 
-defaults
-    log     global
-    mode    http
-    option  httplog
-    option  dontlognull
-    timeout connect 5000
-    timeout client  50000
-    timeout server  50000
+        # refuse to start if any warning is emitted at boot (keep configs clean)
+        zero-warning
+
+        # Security hardening: isolate and drop privileges
+        chroot /var/empty
+        user haproxy
+        group haproxy
+
+        # daemonize
+        # system 데몬 등록 예정으로 daemon 옵션 주석
+        #daemon
+        pidfile /var/run/haproxy-svc1.pid
+
+        # do not keep old processes longer than that after a reload
+        hard-stop-after 5m
+
+        # The command-line-interface (CLI) used by the admin, by provisionning
+        # tools, and to transfer sockets during reloads
+        stats socket /var/run/haproxy-svc1.sock level admin mode 600 user haproxy expose-fd listeners
+        stats timeout 1h
+
+        # send logs to stderr for logging via the service manager
+        log stderr local0 info
+
+defaults http
+        mode http
+        option httplog
+        log     global
+        timeout client  1m
+        timeout server  1m
+        timeout connect 10s
+        timeout http-keep-alive 2m
+        timeout queue 15s
+        timeout tunnel 4h # for websocket
 
 frontend http-in
-    bind *:80
-    acl host_a hdr(host) -i a-site.com
-    use_backend web_a if host_a
+        bind :80
+        acl host_a hdr(host) -i a-site.com
+        use_backend web_a if host_a
 
 backend web_a
-    mode http
-    server web1 172.16.3.1:80 check
+        mode http
+        server web1 172.16.3.1:80 check
 ```
 
 ```bash
@@ -123,9 +148,7 @@ After=network.target
 
 [Service]
 Type=notify
-ExecStart=/usr/local/haproxy/sbin/haproxy -Ws \
-    -f /usr/local/haproxy/etc/haproxy.cfg \
-    -p /usr/local/haproxy/run/haproxy.pid
+ExecStart=/usr/local/haproxy/sbin/haproxy -Ws -f /usr/local/haproxy/etc/haproxy.cfg
 
 ExecReload=/usr/local/haproxy/sbin/haproxy -f /usr/local/haproxy/etc/haproxy.cfg -c -q
 ExecReload=/bin/kill -USR2 $MAINPID
