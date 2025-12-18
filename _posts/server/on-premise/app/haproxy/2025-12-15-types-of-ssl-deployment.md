@@ -161,7 +161,96 @@ Client가 HTTPS 요청시 WAF에서 암호화된 패킷을 복호화하여 WAF �
 > WAF가 탐지 설정이 되어있을경우에만 탐지 수행 할 뿐더러, 웹 서버로 전달하는것도 상황에 따라 전달 여부가 달라집니다.
 {: .prompt-info}
 
+haproxy 설정.
 
+```bash
+cd /usr/local/haproxy/etc/
+
+# 설정 파일 백업
+cp haproxy.cfg haproxy.cfg_$(date +%Y%m%d)
+
+vi haproxy.cfg
+```
+
+```text
+global
+        # ... global 설정 부분 마지막 추가
+
+        # intermediate security for SSL, from https://ssl-config.mozilla.org/
+        ssl-default-bind-curves X25519:prime256v1:secp384r1
+        ssl-default-bind-ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-CHACHA20-POLY1305
+        ssl-default-bind-ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
+        ssl-default-bind-options prefer-client-ciphers ssl-min-ver TLSv1.2 no-tls-tickets
+
+        ssl-default-server-curves X25519:prime256v1:secp384r1
+        ssl-default-server-ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-CHACHA20-POLY1305
+        ssl-default-server-ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
+        ssl-default-server-options ssl-min-ver TLSv1.2 no-tls-tickets
+
+... defaults 설정 내용 생략
+
+frontend a-site.com
+    bind :443 ssl crt /usr/local/haproxy/certs/
+
+    mode http
+
+    # Host matching
+    acl host_a hdr(host) -i a-site.com
+
+    default_backend web_a
+
+backend web_a
+    mode http
+    server web1 172.16.3.1:80
+```
+
+> global ssl 옵션은 <https://ssl-config.mozilla.org>{:target="_blank"} 참조하여 해당 버전에 맞는 설정 확인하여 적용 해야합니다.
+{: .prompt-info}
+
+ssl 인증서 파일 확인
+
+```bash
+ll /usr/local/haproxy/certs/a-site.com.pem
+```
+
+```bash
+# Syntax 체크
+/usr/local/haproxy/sbin/haproxy -c -f /usr/local/haproxy/etc/haproxy.cfg
+
+# 재시작
+systemctl reload haproxy
+systemctl status haproxy
+```
+
+실시간 로그 확인.
+
+```bash
+# haproxy
+
+tail -f /var/log/haproxy.log
+
+Dec 18 23:39:11 localhost haproxy[20321]: xxx.28.xxx.28:58625 [18/Dec/2025:23:39:11.007] a-site.com~ web_a/web1 0/0/2/8/10 200 676 - - ---- 1/1/0/0/0 0/0 "GET https://a-site.com/ HTTP/2.0"
+Dec 18 23:39:11 localhost haproxy[20321]: xxx.28.xxx.28:58625 [18/Dec/2025:23:39:11.248] a-site.com~ web_a/web1 0/0/0/8/8 200 556 - - ---- 1/1/1/1/0 0/0 "GET https://a-site.com/tomcat.css HTTP/2.0"
+Dec 18 23:39:11 localhost haproxy[20321]: xxx.28.xxx.28:58625 [18/Dec/2025:23:39:11.249] a-site.com~ web_a/web1 0/0/1/11/12 200 605 - - ---- 1/1/0/0/0 0/0 "GET https://a-site.com/tomcat.svg HTTP/2.0"
+Dec 18 23:39:11 localhost haproxy[20321]: xxx.28.xxx.28:58625 [18/Dec/2025:23:39:11.360] a-site.com~ web_a/web1 0/0/0/2/2 200 610 - - ---- 1/1/3/3/0 0/0 "GET https://a-site.com/bg-nav.png HTTP/2.0"
+Dec 18 23:39:11 localhost haproxy[20321]: xxx.28.xxx.28:58625 [18/Dec/2025:23:39:11.361] a-site.com~ web_a/web1 0/0/0/2/2 200 612 - - ---- 1/1/2/2/0 0/0 "GET https://a-site.com/bg-upper.png HTTP/2.0"
+Dec 18 23:39:11 localhost haproxy[20321]: xxx.28.xxx.28:58625 [18/Dec/2025:23:39:11.361] a-site.com~ web_a/web1 0/0/0/2/2 200 613 - - ---- 1/1/1/1/0 0/0 "GET https://a-site.com/bg-button.png HTTP/2.0"
+Dec 18 23:39:11 localhost haproxy[20321]: xxx.28.xxx.28:58625 [18/Dec/2025:23:39:11.361] a-site.com~ web_a/web1 0/0/0/3/3 200 617 - - ---- 1/1/0/0/0 0/0 "GET https://a-site.com/asf-logo-wide.svg HTTP/2.0"
+Dec 18 23:39:11 localhost haproxy[20321]: xxx.28.xxx.28:58625 [18/Dec/2025:23:39:11.407] a-site.com~ web_a/web1 0/0/0/2/2 200 613 - - ---- 1/1/0/0/0 0/0 "GET https://a-site.com/bg-middle.png HTTP/2.0"
+
+# apache
+
+tail -f /var/log/httpd/a-site.com_access_log-$(date +%Y%m%d)
+
+172.16.2.6 - - [18/Dec/2025:23:39:11 +0900] "GET / HTTP/1.1" 200 11212
+172.16.2.6 - - [18/Dec/2025:23:39:11 +0900] "GET /tomcat.css HTTP/1.1" 200 5584
+172.16.2.6 - - [18/Dec/2025:23:39:11 +0900] "GET /tomcat.svg HTTP/1.1" 200 67795
+172.16.2.6 - - [18/Dec/2025:23:39:11 +0900] "GET /bg-nav.png HTTP/1.1" 200 1401
+172.16.2.6 - - [18/Dec/2025:23:39:11 +0900] "GET /bg-upper.png HTTP/1.1" 200 3103
+172.16.2.6 - - [18/Dec/2025:23:39:11 +0900] "GET /bg-button.png HTTP/1.1" 200 713
+172.16.2.6 - - [18/Dec/2025:23:39:11 +0900] "GET /asf-logo-wide.svg HTTP/1.1" 200 27235
+172.16.2.6 - - [18/Dec/2025:23:39:11 +0900] "GET /bg-middle.png HTTP/1.1" 200 1918
+```
 
 
 ### TLS Bridging(Re-encryption)
