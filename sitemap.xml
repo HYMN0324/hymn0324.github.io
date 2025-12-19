@@ -9,7 +9,7 @@ layout: null
   {% for post in site.posts %}
   <url>
     <loc>{{ site.url }}{{ post.url }}</loc>
-    <lastmod>{{ post.last_modified_at | default: post.date | date_to_xmlschema }}</lastmod>
+    <lastmod>{{ post.last_modified_at | post.date }}</lastmod>
     <changefreq>{{ post.sitemap.changefreq | default: "weekly" }}</changefreq>
     <priority>{{ post.sitemap.priority | default: "0.5" }}</priority>
   </url>
