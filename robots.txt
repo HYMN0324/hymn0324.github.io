@@ -1,4 +1,2 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://hymn0324.github.io/sitemap.xml
+user-agent: *
+sitemap: https://hymn0324.github.io/sitemap.xml
