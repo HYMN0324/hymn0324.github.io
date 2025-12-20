@@ -98,7 +98,8 @@ global
         stats timeout 1h
 
         # send logs to stderr for logging via the service manager
-        log stderr local0 info
+        # log stderr local0 info
+        log 127.0.0.1:514 local0
 
 defaults http
         mode http
@@ -124,6 +125,20 @@ backend web_a
 ```bash
 # Syntax 체크
 /usr/local/haproxy/sbin/haproxy -c -f /usr/local/haproxy/etc/haproxy.cfg
+```
+
+### rsyslog 연동 설정
+
+```bash
+vi /etc/rsyslog.d/haproxy.conf
+```
+
+```text
+$ModLoad imudp
+$UDPServerAddress *
+$UDPServerRun 514
+
+local0.*    /var/log/haproxy.log
 ```
 
 ### 방화벽 설정
