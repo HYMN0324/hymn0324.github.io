@@ -481,6 +481,6 @@ End-to-End TLS(Pass-through) 설정 후 정리 된 내용은 아래와 같습니
 이 내용을 가정이 아닌 실제 동작 기준으로 검증하여 TLS(SSL) 배포 아키텍쳐 종류별로 WAF기능을 수행하는지 확인해보겠습니다.
 
 HAProxy와 ModeSecurity 연동하는 방법은 아래 post를 참조하여 확인.  
-[modsecurity 설치](http://172.16.2.0:4000/how-to-assoc-haproxy-modsecurity#modsecurity-%EC%84%A4%EC%B9%98), [spoa-modsecurity 설치 - haproxy 연동 모듈](http://172.16.2.0:4000/how-to-assoc-haproxy-modsecurity#spoa-modsecurity-%EC%84%A4%EC%B9%98)
+[modsecurity 설치](how-to-assoc-haproxy-modsecurity#modsecurity-%EC%84%A4%EC%B9%98){:target="_blank"}, [spoa-modsecurity 설치 - haproxy 연동 모듈](how-to-assoc-haproxy-modsecurity#spoa-modsecurity-%EC%84%A4%EC%B9%98){:target="_blank"}
 
 update 예정.
