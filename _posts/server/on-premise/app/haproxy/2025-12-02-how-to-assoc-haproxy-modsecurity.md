@@ -361,6 +361,7 @@ frontend http-in
     # 추가
     option http-buffer-request
     filter spoe engine modsecurity config /usr/local/haproxy/etc/spoe-modsecurity.conf
+    http-request deny if { var(txn.modsec.code) -m int gt 0 }
 
     unique-id-format %{+X}o\ %ci:%cp_%fi:%fp_%Ts_%rt:%pid
     unique-id-header X-Unique-ID

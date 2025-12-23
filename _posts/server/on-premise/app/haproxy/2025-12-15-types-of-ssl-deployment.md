@@ -483,4 +483,268 @@ End-to-End TLS(Pass-through) 설정 후 정리 된 내용은 아래와 같습니
 HAProxy와 ModeSecurity 연동하는 방법은 아래 post를 참조하여 확인.  
 [modsecurity 설치](how-to-assoc-haproxy-modsecurity#modsecurity-%EC%84%A4%EC%B9%98){:target="_blank"}, [spoa-modsecurity 설치 - haproxy 연동 모듈](how-to-assoc-haproxy-modsecurity#spoa-modsecurity-%EC%84%A4%EC%B9%98){:target="_blank"}
 
-update 예정.
+
+End-to-End TLS(Pass-through) 부터 확인해보겠습니다.
+
+haproxy 설정.
+
+```bash
+cd /usr/local/haproxy/etc
+
+cp haproxy.cfg haproxy.cfg_$(date +%Y%m%d)
+
+vi haproxy.cfg
+```
+
+```text
+global
+        # zero-warning 설정이 있으면 주석처리.
+        # zero-warning
+
+... defaults 설정 내용 생략
+
+frontend a-site.com
+        bind :443
+
+        mode tcp
+        option tcplog
+
+        # Host matching
+        # acl host_a hdr(host) -i a-site.com
+
+        # 추가
+        option http-buffer-request
+        filter spoe engine modsecurity config /usr/local/haproxy/etc/spoe-modsecurity.conf
+        http-request deny if { var(txn.modsec.code) -m int gt 0 }
+
+        unique-id-format %{+X}o\ %ci:%cp_%fi:%fp_%Ts_%rt:%pid
+        unique-id-header X-Unique-ID
+        log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[unique-id]"
+        # 추가 끝
+
+# 추가
+backend spoe-modsecurity
+        mode tcp
+        server modsec1 127.0.0.1:12345
+# 추가 끝
+
+... backend web_a 설정 내용 생략
+```
+
+spoe-modsecurity 설정.
+
+```bash
+vi /usr/local/haproxy/etc/spoe-modsecurity.conf
+```
+
+```text
+[modsecurity]
+
+spoe-agent modsecurity-agent
+        messages check-request
+        option var-prefix modsec
+        timeout hello      100ms
+        timeout idle       30s
+        timeout processing 15ms
+        use-backend spoe-modsecurity
+
+ spoe-message check-request
+        args unique-id src src_port dst dst_port method path query req.ver req.hdrs_bin req.body_size req.body
+        event on-frontend-http-request
+```
+
+```bash
+# Syntax 체크
+/usr/local/haproxy/sbin/haproxy -c -f /usr/local/haproxy/etc/haproxy.cfg
+
+[NOTICE]   (xxxx) : haproxy version is 3.3.0-7832fb21fe2d
+[NOTICE]   (xxxx) : path to executable is /usr/local/haproxy/sbin/haproxy
+[WARNING]  (xxxx) : 'option http-buffer-request' ignored for frontend 'a-site.com' as it requires HTTP mode.
+[NOTICE]   (xxxx) : Automatically setting global.maxconn to 262129.
+```
+
+http mode가 필요하여 `option http-buffer-request` 설정이 무시되었다는 WARNING 내용이 나왔지만 재기동하여 확인 해보겠습니다.
+
+```bash
+# 재시작
+systemctl reload haproxy
+systemctl status haproxy
+```
+
+```bash
+# 브라우저 접속 후 로그 확인
+# https://a-site.com
+
+# haproxy log
+tail -f /var/log/haproxy.log
+
+... a-site.com web_a/web1 -1/1/1/-1/1042 0 395 - - ---- 3/3/2/2/0 0/0 "<BADREQ>" 14539766:D3E4_AC100206:01BB_694A7F24_000E:0695
+... a-site.com web_a/web1 -1/1/1/-1/11898 0 3930 - - ---- 6/6/5/5/0 0/0 "<BADREQ>" 681CD31D:C331_AC100206:01BB_694A7F23_000D:0695
+... a-site.com web_a/web1 -1/1/1/-1/11902 0 4725 - - ---- 5/5/4/4/0 0/0 "<BADREQ>" 681CD31D:C32D_AC100206:01BB_694A7F23_000C:0695
+... a-site.com web_a/web1 -1/1/0/-1/5357 0 3236 - - ---- 4/4/3/3/0 0/0 "<BADREQ>" 681CD31D:C332_AC100206:01BB_694A7F29_000F:0695
+... a-site.com web_a/web1 -1/1/0/-1/20252 0 1866 - - ---- 3/3/2/2/0 0/0 "<BADREQ>" 681CD31D:C339_AC100206:01BB_694A7F29_0011:0695
+... a-site.com web_a/web1 -1/1/0/-1/20251 0 1851 - - ---- 2/2/1/1/0 0/0 "<BADREQ>" 681CD31D:C33C_AC100206:01BB_694A7F29_0012:0695
+... a-site.com web_a/web1 -1/1/0/-1/20323 0 1883 - - ---- 1/1/0/0/0 0/0 "<BADREQ>" 681CD31D:C333_AC100206:01BB_694A7F29_0010:0695
+```
+
+기존과 달리 추가 내용이 나왔지만 정상 접근인데도 불구하고 `"<BADREQ>"`가 나온것을 확인 할 수 있습니다.  
+게다가 haproxy 재기동 전 Syntax 체크할때 WARNING 나온것으로 보아 정상 동작 안할거라는 짐작도 들었습니다.
+
+Apache는 당연히 기존과 동일하게 요청 받기 때문에 특이사항은 없습니다.
+
+```bash
+# apache log
+tail -f /var/log/httpd/a-site.com_ssl-access_log-$(date +%Y%m%d)
+
+- 172.16.2.6 - - [23/Dec/2025:20:38:11 +0900] "GET / HTTP/1.1" 200 11212 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:38:17 +0900] "GET /tomcat.css HTTP/1.1" 200 5584 "https://a-site.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:38:17 +0900] "GET /tomcat.svg HTTP/1.1" 200 67795 "https://a-site.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:38:17 +0900] "GET /bg-nav.png HTTP/1.1" 200 1401 "https://a-site.com/tomcat.css" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:38:17 +0900] "GET /asf-logo-wide.svg HTTP/1.1" 200 27235 "https://a-site.com/tomcat.css" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:38:18 +0900] "GET /bg-upper.png HTTP/1.1" 200 3103 "https://a-site.com/tomcat.css" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:38:18 +0900] "GET /bg-button.png HTTP/1.1" 200 713 "https://a-site.com/tomcat.css" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:38:18 +0900] "GET /bg-middle.png HTTP/1.1" 200 1918 "https://a-site.com/tomcat.css" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:38:18 +0900] "GET /favicon.ico HTTP/1.1" 200 21630 "https://a-site.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+```
+
+이제 haproxy에서 mode를 tcp에서 http로 변경하여 확인해보겠습니다.
+
+```bash
+vi /usr/local/haproxy/etc/haproxy.cfg
+```
+
+```text
+... global 설정 내용 생략
+
+... defaults 설정 내용 생략
+
+frontend a-site.com
+        bind :443 ssl crt /usr/local/haproxy/certs/
+
+        mode http
+        option httplog
+
+        # Host matching
+        acl host_a hdr(host) -i a-site.com
+
+        option http-buffer-request
+        filter spoe engine modsecurity config /usr/local/haproxy/etc/spoe-modsecurity.conf
+        http-request deny if { var(txn.modsec.code) -m int gt 0 }
+
+        unique-id-format %{+X}o\ %ci:%cp_%fi:%fp_%Ts_%rt:%pid
+        unique-id-header X-Unique-ID
+        log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[unique-id]"
+
+        default_backend web_a
+
+... backend spoe-modsecurity 설정 내용 생략
+
+backend web_a
+        mode http
+        server web1 172.16.3.1:443 ssl verify none
+```
+
+```bash
+# Syntax 체크
+/usr/local/haproxy/sbin/haproxy -c -f /usr/local/haproxy/etc/haproxy.cfg
+
+# 재시작
+systemctl reload haproxy
+systemctl status haproxy
+```
+
+```bash
+# 브라우저 접속 후 로그 확인
+# https://a-site.com
+
+# haproxy log
+tail -f /var/log/haproxy.log
+
+... a-site.com~ web_a/web1 10/0/2/6157/6169 200 697 - - ---- 1/1/0/0/0 0/0 "GET https://a-site.com/ HTTP/2.0" 681CF320:F81C_AC100206:01BB_694A82B7_0024:06A8
+... a-site.com~ web_a/web1 9/0/0/2/12 200 626 - - ---- 1/1/1/1/0 0/0 "GET https://a-site.com/tomcat.svg HTTP/2.0" 681CF320:F81C_AC100206:01BB_694A82E3_0027:06A8
+... a-site.com~ web_a/web1 9/0/2/2/13 200 577 - - ---- 1/1/0/0/0 0/0 "GET https://a-site.com/tomcat.css HTTP/2.0" 681CF320:F81C_AC100206:01BB_694A82E2_0026:06A8
+... a-site.com~ web_a/web1 8/0/0/28/36 200 634 - - ---- 1/1/4/4/0 0/0 "GET https://a-site.com/bg-button.png HTTP/2.0" 681CF320:F81C_AC100206:01BB_694A82E3_002E:06A8
+... a-site.com~ web_a/web1 4/0/0/32/36 200 638 - - ---- 1/1/3/3/0 0/0 "GET https://a-site.com/asf-logo-wide.svg HTTP/2.0" 681CF320:F81C_AC100206:01BB_694A82E3_002B:06A8
+... a-site.com~ web_a/web1 11/0/27/1/39 200 634 - - ---- 1/1/2/2/0 0/0 "GET https://a-site.com/bg-middle.png HTTP/2.0" 681CF320:F81C_AC100206:01BB_694A82E3_002C:06A8
+... a-site.com~ web_a/web1 8/0/30/1/39 200 631 - - ---- 1/1/1/1/0 0/0 "GET https://a-site.com/bg-nav.png HTTP/2.0" 681CF320:F81C_AC100206:01BB_694A82E3_002A:06A8
+... a-site.com~ web_a/web1 10/0/28/1/39 200 633 - - ---- 1/1/0/0/0 0/0 "GET https://a-site.com/bg-upper.png HTTP/2.0" 681CF320:F81C_AC100206:01BB_694A82E3_002D:06A8
+... a-site.com~ web_a/web1 3/0/0/1/4 200 627 - - ---- 1/1/0/0/0 0/0 "GET https://a-site.com/favicon.ico HTTP/2.0" 681CF320:F81C_AC100206:01BB_694A82E3_0034:06A8
+```
+
+좀전에 나왔던 `"<BADREQ>"` 자리에 HTTP 메서드와 url이 나온것을 확인 할 수 있습니다.
+
+Apache 로그는 변동 내용이 없음을 확인 할 수 있습니다.
+
+```bash
+# apache log
+tail -f /var/log/httpd/a-site.com_ssl-access_log-$(date +%Y%m%d)
+
+- 172.16.2.6 - - [23/Dec/2025:20:54:04 +0900] "GET / HTTP/1.1" 200 11212 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:54:11 +0900] "GET /tomcat.svg HTTP/1.1" 200 67795 "https://a-site.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:54:11 +0900] "GET /tomcat.css HTTP/1.1" 200 5584 "https://a-site.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:54:11 +0900] "GET /bg-button.png HTTP/1.1" 200 713 "https://a-site.com/tomcat.css" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:54:11 +0900] "GET /asf-logo-wide.svg HTTP/1.1" 200 27235 "https://a-site.com/tomcat.css" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:54:11 +0900] "GET /bg-middle.png HTTP/1.1" 200 1918 "https://a-site.com/tomcat.css" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:54:11 +0900] "GET /bg-nav.png HTTP/1.1" 200 1401 "https://a-site.com/tomcat.css" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:54:11 +0900] "GET /bg-upper.png HTTP/1.1" 200 3103 "https://a-site.com/tomcat.css" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:20:54:11 +0900] "GET /favicon.ico HTTP/1.1" 200 21630 "https://a-site.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+```
+
+마지막으로 공격성 url 요청하여 탐지 및 차단 되는지 확인해보겠습니다.
+
+```bash
+cd /usr/local/modsecurity/conf
+
+cp modsecurity.conf modsecurity.conf_$(date +%Y%m%d)
+
+vi modsecurity.conf
+```
+
+```text
+# -- Rule engine initialization ----------------------------------------------
+
+# Enable ModSecurity, attaching it to every transaction. Use detection
+# only to start with, because that minimises the chances of post-installation
+# disruption.
+#
+
+# DetectionOnly(탐지만) -> On(탐지 및 차단) 설정.
+SecRuleEngine On
+```
+
+```bash
+systemctl restart modsecurity
+systemctl status modsecurity
+```
+
+```bash
+# 브라우저 접속 후 로그 확인
+
+# OS Command Injection 공격
+# https://a-site.com?exec=gcc -o blasty blasty-vs-pkexec.c
+# SQL Injection 공격
+#
+
+# haproxy log
+tail -f /var/log/haproxy.log
+
+... 403 741 - - PR-- 1/1/0/0/0 0/0 "GET https://a-site.com/?exec=gcc%20-o%20blasty%20blasty-vs-pkexec.c HTTP/2.0" 681CF31B:B8B6_AC100206:01BB_694A9235_00B4:0785
+... 200 671 - - ---- 1/1/0/0/0 0/0 "GET https://a-site.com/favicon.ico HTTP/2.0" 681CF31B:B8B6_AC100206:01BB_694A9253_00B6:0785
+```
+
+403 status가 나온것으로 보아 forbidden으로 차단된것을 확인 할 수 있습니다.  
+200 status에 대한 요청내용 확인 결과, favicon(아이콘)은 기본적으로 정상 응답하는것으로 확인됩니다.
+
+Apache 로그 확인결과 favicon만 요청 및 응답 제외한 나머지 요청은 haproxy로 부터 차단되어 요청 오지 않은 것으로 확인되었습니다.
+
+```bash
+# apache log
+tail -f /var/log/httpd/a-site.com_ssl-access_log-$(date +%Y%m%d)
+
+- 172.16.2.6 - - [23/Dec/2025:22:01:45 +0900] "GET /favicon.ico HTTP/1.1" 200 21630 "https://a-site.com/?exec=gcc%20-o%20blasty%20blasty-vs-pkexec.c" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+```
+
+이로써 WAF 기능도 추가하여 실제 운영과 가깝게 적용해보고 이해 할 수 있었습니다.
+
+## 마무리
+
