@@ -154,8 +154,8 @@ ps -ef | grep httpd
 이제 TLS Termination이 이루어지는지 확인해보겠습니다.
 
 ```bash
-# 브라우저 접속 후 로그 확인
-# https://a-site.com
+# 브라우저 접속 또는 curl 호출 확인
+curl https://a-site.com
 
 # haproxy log
 tail -f /var/log/haproxy.log
@@ -315,8 +315,8 @@ proto=%{X-Forwarded-Proto}i ssl=%{HTTPS}e \
 이제 TLS Bridging(Re-encryption)이 이루어지는지 확인해보겠습니다.
 
 ```bash
-# 브라우저 접속 후 로그 확인
-# https://a-site.com
+# 브라우저 접속 또는 curl 호출 확인
+curl https://a-site.com
 
 # haproxy log
 tail -f /var/log/haproxy.log
@@ -432,8 +432,8 @@ Apache 설정 생략(변동없음)
 이제 Pass-through가 이루어 지는지 확인해보겠습니다.
 
 ```bash
-# 브라우저 접속 후 로그 확인
-# https://a-site.com
+# 브라우저 접속 또는 curl 호출 확인
+curl https://a-site.com
 
 # haproxy log
 tail -f /var/log/haproxy.log
@@ -485,6 +485,32 @@ HAProxy와 ModeSecurity 연동하는 방법은 아래 post를 참조하여 확�
 
 
 End-to-End TLS(Pass-through) 부터 확인해보겠습니다.
+
+modsecurity 설정 확인.
+
+```bash
+cd /usr/local/modsecurity/conf
+
+vi modsecurity.conf
+```
+
+```text
+# -- Rule engine initialization ----------------------------------------------
+
+# Enable ModSecurity, attaching it to every transaction. Use detection
+# only to start with, because that minimises the chances of post-installation
+# disruption.
+#
+
+# DetectionOnly(탐지만) 설정 확인.
+SecRuleEngine DetectionOnly
+```
+
+```bash
+# 설정 변경한경우 재기동
+systemctl restart modsecurity
+systemctl status modsecurity
+```
 
 haproxy 설정.
 
@@ -559,11 +585,11 @@ spoe-agent modsecurity-agent
 
 [NOTICE]   (xxxx) : haproxy version is 3.3.0-7832fb21fe2d
 [NOTICE]   (xxxx) : path to executable is /usr/local/haproxy/sbin/haproxy
-[WARNING]  (xxxx) : 'option http-buffer-request' ignored for frontend 'a-site.com' as it requires HTTP mode.
-[NOTICE]   (xxxx) : Automatically setting global.maxconn to 262129.
+[WARNING]  (1627) : 'http-request' rules ignored for frontend 'a-site.com' as they require HTTP mode.
+[WARNING]  (1627) : 'option http-buffer-request' ignored for frontend 'a-site.com' as it requires HTTP mode.
 ```
 
-http mode가 필요하여 `option http-buffer-request` 설정이 무시되었다는 WARNING 내용이 나왔지만 재기동하여 확인 해보겠습니다.
+`http-request`와 `option http-buffer-request` 설정이 무시되었다는 WARNING 내용이 나왔지만 재기동하여 확인 해보겠습니다.
 
 ```bash
 # 재시작
@@ -572,23 +598,17 @@ systemctl status haproxy
 ```
 
 ```bash
-# 브라우저 접속 후 로그 확인
-# https://a-site.com
+# 브라우저 접속 또는 curl 호출 확인
+curl https://a-site.com
 
 # haproxy log
 tail -f /var/log/haproxy.log
 
-... a-site.com web_a/web1 -1/1/1/-1/1042 0 395 - - ---- 3/3/2/2/0 0/0 "<BADREQ>" 14539766:D3E4_AC100206:01BB_694A7F24_000E:0695
-... a-site.com web_a/web1 -1/1/1/-1/11898 0 3930 - - ---- 6/6/5/5/0 0/0 "<BADREQ>" 681CD31D:C331_AC100206:01BB_694A7F23_000D:0695
-... a-site.com web_a/web1 -1/1/1/-1/11902 0 4725 - - ---- 5/5/4/4/0 0/0 "<BADREQ>" 681CD31D:C32D_AC100206:01BB_694A7F23_000C:0695
-... a-site.com web_a/web1 -1/1/0/-1/5357 0 3236 - - ---- 4/4/3/3/0 0/0 "<BADREQ>" 681CD31D:C332_AC100206:01BB_694A7F29_000F:0695
-... a-site.com web_a/web1 -1/1/0/-1/20252 0 1866 - - ---- 3/3/2/2/0 0/0 "<BADREQ>" 681CD31D:C339_AC100206:01BB_694A7F29_0011:0695
-... a-site.com web_a/web1 -1/1/0/-1/20251 0 1851 - - ---- 2/2/1/1/0 0/0 "<BADREQ>" 681CD31D:C33C_AC100206:01BB_694A7F29_0012:0695
-... a-site.com web_a/web1 -1/1/0/-1/20323 0 1883 - - ---- 1/1/0/0/0 0/0 "<BADREQ>" 681CD31D:C333_AC100206:01BB_694A7F29_0010:0695
+... a-site.com web_a/web1 -1/1/0/-1/65 0 2496 - - ---- 1/1/0/0/0 0/0 "<BADREQ>" C0A80101:DACB_AC100206:01BB_694BE49C_0006:0791
 ```
 
 기존과 달리 추가 내용이 나왔지만 정상 접근인데도 불구하고 `"<BADREQ>"`가 나온것을 확인 할 수 있습니다.  
-게다가 haproxy 재기동 전 Syntax 체크할때 WARNING 나온것으로 보아 정상 동작 안할거라는 짐작도 들었습니다.
+게다가 haproxy 재기동 전 Syntax 체크할때 WARNING 나온것으로 보아 정상 동작 안할거라는 짐작도 들었을겁니다.
 
 Apache는 당연히 기존과 동일하게 요청 받기 때문에 특이사항은 없습니다.
 
@@ -607,6 +627,18 @@ tail -f /var/log/httpd/a-site.com_ssl-access_log-$(date +%Y%m%d)
 - 172.16.2.6 - - [23/Dec/2025:20:38:18 +0900] "GET /favicon.ico HTTP/1.1" 200 21630 "https://a-site.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
 ```
 
+공격성 url로 접속 시도하여 ModSecurity 연동 되는지 확인해보겠습니다.
+
+```bash
+# 브라우저에서도 https://a-site.com?exec=/bin/pkexec ls -al /etc 가능
+curl -G https://a-site.com --data-urlencode "exec=/bin/pkexec ls -al /etc"
+
+tail -f /var/log/modsec_audit.log
+# noting
+```
+
+당연하게도 haproxy에서는 패킷을 복호화하지 않고 Web Server로 바로 전송하기때문에 HTTPS 요청을 복호화 할 수 없으므로 ModSecurity 연동 안되는것을 확인 할 수 있습니다.
+
 이제 haproxy에서 mode를 tcp에서 http로 변경하여 확인해보겠습니다.
 
 ```bash
@@ -624,18 +656,10 @@ frontend a-site.com
         mode http
         option httplog
 
-        # Host matching
+        # 주석해제
         acl host_a hdr(host) -i a-site.com
 
-        option http-buffer-request
-        filter spoe engine modsecurity config /usr/local/haproxy/etc/spoe-modsecurity.conf
-        http-request deny if { var(txn.modsec.code) -m int gt 0 }
-
-        unique-id-format %{+X}o\ %ci:%cp_%fi:%fp_%Ts_%rt:%pid
-        unique-id-header X-Unique-ID
-        log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[unique-id]"
-
-        default_backend web_a
+        ... 이하 설정 내용 생략
 
 ... backend spoe-modsecurity 설정 내용 생략
 
@@ -654,8 +678,8 @@ systemctl status haproxy
 ```
 
 ```bash
-# 브라우저 접속 후 로그 확인
-# https://a-site.com
+# 브라우저 접속 또는 curl 호출 확인
+curl https://a-site.com
 
 # haproxy log
 tail -f /var/log/haproxy.log
@@ -718,22 +742,19 @@ systemctl status modsecurity
 ```
 
 ```bash
-# 브라우저 접속 후 로그 확인
-
 # OS Command Injection 공격
-# https://a-site.com?exec=gcc -o blasty blasty-vs-pkexec.c
-# SQL Injection 공격
-#
+# https://a-site.com?exec=/bin/pkexec%20ls%20-al%20/etc
+curl -G https://a-site.com --data-urlencode "exec=/bin/pkexec ls -al /etc"
 
 # haproxy log
 tail -f /var/log/haproxy.log
 
-... 403 741 - - PR-- 1/1/0/0/0 0/0 "GET https://a-site.com/?exec=gcc%20-o%20blasty%20blasty-vs-pkexec.c HTTP/2.0" 681CF31B:B8B6_AC100206:01BB_694A9235_00B4:0785
+... 403 741 - - PR-- 1/1/0/0/0 0/0 "GET https://a-site.com/?exec=/bin/pkexec%20ls%20-al%20/etc HTTP/2.0" 681CF31B:B8B6_AC100206:01BB_694A9235_00B4:0785
 ... 200 671 - - ---- 1/1/0/0/0 0/0 "GET https://a-site.com/favicon.ico HTTP/2.0" 681CF31B:B8B6_AC100206:01BB_694A9253_00B6:0785
 ```
 
 403 status가 나온것으로 보아 forbidden으로 차단된것을 확인 할 수 있습니다.  
-200 status에 대한 요청내용 확인 결과, favicon(아이콘)은 기본적으로 정상 응답하는것으로 확인됩니다.
+200 status에 대한 요청내용 확인 결과, favicon(웹 아이콘)은 기본적으로 정상 응답하는것으로 확인됩니다.(브라우저 호출시)
 
 Apache 로그 확인결과 favicon만 요청 및 응답 제외한 나머지 요청은 haproxy로 부터 차단되어 요청 오지 않은 것으로 확인되었습니다.
 
@@ -741,7 +762,137 @@ Apache 로그 확인결과 favicon만 요청 및 응답 제외한 나머지 요�
 # apache log
 tail -f /var/log/httpd/a-site.com_ssl-access_log-$(date +%Y%m%d)
 
-- 172.16.2.6 - - [23/Dec/2025:22:01:45 +0900] "GET /favicon.ico HTTP/1.1" 200 21630 "https://a-site.com/?exec=gcc%20-o%20blasty%20blasty-vs-pkexec.c" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+- 172.16.2.6 - - [23/Dec/2025:22:01:45 +0900] "GET /favicon.ico HTTP/1.1" 200 21630 "https://a-site.com/?exec=/bin/pkexec%20ls%20-al%20/etc" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" proto=- ssl=on TLSv1.3 TLS_AES_128_GCM_SHA256
+```
+
+ModSecurity에 탐지 로그를 확인해보겠습니다.
+
+```bash
+# json formatter 툴 설치
+dnf install jq
+
+# modsecurity log
+tail -n 1 /var/log/modsec_audit.log | jq .
+```
+
+요청 1개당 탐지 내용이 많이 기록되어 일부분만 확인해보겠습니다.
+
+```json
+{
+  "transaction": {
+    "producer": {
+      "modsecurity": "ModSecurity v3.0.14 (Linux)",
+      "connector": "spoa-modsec-localhost.localdomain",
+      "secrules_engine": "Enabled",
+      "components": [
+        "OWASP_CRS/4.0.0\""
+      ]
+    },
+  },
+  {
+    "messages": [
+      {
+        "message": "Remote Command Execution: Unix Shell Code Found",
+        "details": {
+          "match": "Matched \"Operator `PmFromFile' with parameter `unix-shell.data' against variable `ARGS:exec' (Value: `/bin/pkexec ls -al /etc' )",
+          "reference": "o1,10v31,23t:cmdLine,t:normalizePath",
+          "ruleId": "932160",
+          "file": "/usr/local/crs4/rules/REQUEST-932-APPLICATION-ATTACK-RCE.conf",
+          "lineNumber": "556",
+          "data": "Matched Data: bin/pkexec found within ARGS:exec: /bin/pkexec ls -al/etc",
+          "severity": "2",
+          "ver": "OWASP_CRS/4.0.0",
+          "rev": "",
+          "tags": [
+            "application-multi",
+            "language-shell",
+            "platform-unix",
+            "attack-rce",
+            "paranoia-level/1",
+            "OWASP_CRS",
+            "capec/1000/152/248/88",
+            "PCI/6.5.2"
+          ],
+          "maturity": "0",
+          "accuracy": "0"
+        }
+      }
+    ]
+  }
+}
+```
+
+transaction의 producer부분에서 modsecurity 버전 및 `spoa`-modsec가 확인되어 정상 연동 된것을 확인할 수 있습니다.  
+또한 message 부분 `Unix Shell Code Found`로 기록되어있고, data에 `bin/pkexec found within ARGS:exec: /bin/pkexec ls -al/etc`가 기록되어 공격성 url로 탐지된것을 확인할 수 있습니다.
+
+
+### 실제 공격성 url 탐지 확인
+
+post 작성 중 실제 다른 곳에서 공격성 url이 들어와 탐지 및 차단 되었습니다.
+
+```json
+{
+  "transaction": {
+    "client_ip": "195.178.110.161",
+    "time_stamp": "Wed Dec 24 22:53:54 2025",
+    "server_id": "824f2287b1df28a9595a64bb2ce7ab1ec8006b52",
+    "client_port": 60722,
+    "host_ip": "172.16.2.6",
+    "host_port": 443,
+    "unique_id": "C3B26EA1:ED32_AC100206:01BB_694BF072_0036:08C1",
+    "request": {
+      "method": "GET",
+      "http_version": 1.1,
+      "uri": "http://a-site.com/.git/config?",
+      "headers": {
+        "host": "a-site.com",
+        "user-agent": "Mozilla/5.0 (Linux; Android 6.0.1; Lenovo P1a42) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.111 Mobile Safari/537.36",        "accept-charset": "utf-8",
+        "accept-encoding": "gzip"
+      }
+    },
+    "response": {
+      "body": "",
+      "http_code": 200,
+      "headers": {}
+    },
+    "producer": {
+      "modsecurity": "ModSecurity v3.0.14 (Linux)",
+      "connector": "spoa-modsec-localhost.localdomain",
+      "secrules_engine": "Enabled",
+      "components": [
+        "OWASP_CRS/4.0.0\""
+      ]
+    },
+    "messages": [
+      {
+        "message": "Restricted File Access Attempt",
+        "details": {
+          "match": "Matched \"Operator `PmFromFile' with parameter `restricted-files.data' against variable `REQUEST_FILENAME' (Value: `http://a-site.com/.git/config' )",
+          "reference": "o19,6v210,32t:utf8toUnicode,t:urlDecodeUni,t:normalizePathWin",
+          "ruleId": "930130",
+          "file": "/usr/local/crs4/rules/REQUEST-930-APPLICATION-ATTACK-LFI.conf",
+          "lineNumber": "124",
+          "data": "Matched Data: /.git/ found within REQUEST_FILENAME: http:/a-site.com/.git/config",
+          "severity": "2",
+          "ver": "OWASP_CRS/4.0.0",
+          "rev": "",
+          "tags": [
+            "application-multi",
+            "language-multi",
+            "platform-multi",
+            "attack-lfi",
+            "paranoia-level/1",
+            "OWASP_CRS",
+            "capec/1000/255/153/126",
+            "PCI/6.5.4"
+          ],
+          "maturity": "0",
+          "accuracy": "0"
+        }
+      },
+    ]
+  }
+}
 ```
 
 이로써 WAF 기능도 추가하여 실제 운영과 가깝게 적용해보고 이해 할 수 있었습니다.
