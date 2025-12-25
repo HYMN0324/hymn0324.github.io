@@ -42,16 +42,19 @@ dnf --enablerepo=crb install lua-devel
 ### 다운로드 및 설치
 
 ```bash
+mkdir ~/src
+cd ~/src
+
 wget https://github.com/haproxy/haproxy/archive/refs/tags/v3.3.0.tar.gz
 tar zxf v3.3.0.tar.gz
-cd haproxy-3.3.0/
+cd haproxy-3.3.0
 ```
 
 ```bash
-make -j$(nproc) TARGET=linux-glibc \ 
+make -j$(nproc) TARGET=linux-glibc \
 USE_OPENSSL=1 USE_QUIC=1 USE_QUIC_OPENSSL_COMPAT=1 USE_LUA=1 USE_PCRE2=1
 
-make install PREFIX=/usr/local/haproxy/
+make install PREFIX=/usr/local/haproxy
 ```
 
 ### 기본 설정
@@ -60,14 +63,9 @@ make install PREFIX=/usr/local/haproxy/
 # haproxy 실행 전용 계정 생성
 useradd -r -s /sbin/nologin haproxy
 
-cd /usr/local/haproxy/
+mkdir /usr/local/haproxy/etc
 
-mkdir etc/
-mkdir log/
-mkdir run/
-mkdir lib/
-
-vi etc/haproxy.cfg
+vi /usr/local/haproxy/etc/haproxy.cfg
 ```
 
 ```text
@@ -112,10 +110,16 @@ defaults http
         timeout queue 15s
         timeout tunnel 4h # for websocket
 
-frontend http-in
+frontend a-site.com
         bind :80
+
+        mode http
+        option httplog
+
+        # Host matching
         acl host_a hdr(host) -i a-site.com
-        use_backend web_a if host_a
+
+        default_backend web_a
 
 backend web_a
         mode http
@@ -127,7 +131,7 @@ backend web_a
 /usr/local/haproxy/sbin/haproxy -c -f /usr/local/haproxy/etc/haproxy.cfg
 ```
 
-### rsyslog 연동 설정
+### rsyslog 연동
 
 ```bash
 vi /etc/rsyslog.d/haproxy.conf
@@ -138,7 +142,13 @@ $ModLoad imudp
 $UDPServerAddress *
 $UDPServerRun 514
 
+# 다른 프로그램에서 local0 사용중인경우 local1 설정
 local0.*    /var/log/haproxy.log
+```
+
+```bash
+systemctl restart rsyslog
+systemctl status rsyslog
 ```
 
 ### 방화벽 설정
@@ -206,15 +216,14 @@ dnf install ssdeep-devel
 ### 다운로드 및 설치
 
 ```bash
-mkdir ~/src/
-cd ~/src/
+cd ~/src
 
 wget https://github.com/owasp-modsecurity/ModSecurity/releases/download/v3.0.14/modsecurity-v3.0.14.tar.gz
 
 tar zxf modsecurity-v3.0.14.tar.gz
-cd modsecurity-v3.0.14/
+cd modsecurity-v3.0.14
 
-./configure --prefix=/usr/local/modsecurity/ --with-pcre2 --with-lmdb
+./configure --prefix=/usr/local/modsecurity --with-pcre2 --with-lmdb
 ```
 
 ```bash
@@ -225,10 +234,12 @@ make install
 ### 설정 파일 적용
 
 ```bash
-mkdir /usr/local/modsecurity/conf/
+mkdir /usr/local/modsecurity/conf
 
 cp modsecurity.conf-recommended /usr/local/modsecurity/conf/modsecurity.conf
 cp unicode.mapping /usr/local/modsecurity/conf/
+
+ll /usr/local/modsecurity/conf/
 ```
 
 ## spoa-modsecurity 설치
@@ -236,20 +247,22 @@ cp unicode.mapping /usr/local/modsecurity/conf/
 ### 의존 패키지 설치
 
 ```bash
-dnf install git libevent-devel libassan
+dnf install git libevent-devel libasan
 ```
 
 ### 다운로드 및 설치
 
 ```bash
-cd ~/src/
+cd ~/src
 git clone https://github.com/FireBurn/spoa-modsecurity.git
 
-cd spoa-modsecurity/
+cd spoa-modsecurity
 
 # modsecurity 설치 경로 수정
+cp Makefile Makefile_$(date +%Y%m%d)
+
 sed -i 's|^PREFIX[[:space:]]*=[[:space:]]*/usr/local$|PREFIX     = /usr/local/modsecurity|' Makefile
-sed -i 's|ModSecurity-v3.0.5/INSTALL/||g' Makefile
+sed -i 's|ModSecurity-v3.0.5/INSTALL||g' Makefile
 
 make -j$(nproc)
 make install
@@ -292,12 +305,13 @@ systemctl enable modsecurity
 ## OWASP CRS 4.0 적용
 
 ```bash
+cd ~/src
 wget https://github.com/coreruleset/coreruleset/archive/refs/tags/v4.0.0.tar.gz
 
 tar zxf v4.0.0.tar.gz
 mv coreruleset-4.0.0 /usr/local/crs4
 
-cd /usr/local/crs4/
+cd /usr/local/crs4
 
 cp crs-setup.conf.example crs-setup.conf
 
@@ -352,37 +366,44 @@ vi /usr/local/haproxy/etc/haproxy.cfg
 ```
 
 ```text
-frontend http-in
-    bind *:80
+frontend a-site.com
+        bind :80
 
-    acl host_a hdr(host) -i a-site.com
-    use_backend web_a if host_a
+        mode http
+        option httplog
 
-    # 추가
-    option http-buffer-request
-    filter spoe engine modsecurity config /usr/local/haproxy/etc/spoe-modsecurity.conf
-    http-request deny if { var(txn.modsec.code) -m int gt 0 }
+        acl host_a hdr(host) -i a-site.com
 
-    unique-id-format %{+X}o\ %ci:%cp_%fi:%fp_%Ts_%rt:%pid
-    unique-id-header X-Unique-ID
-    log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[unique-id]"
-    # 추가 끝
+        # 추가
+        option http-buffer-request
+        filter spoe engine modsecurity config /usr/local/haproxy/etc/spoe-modsecurity.conf
+        http-request deny if { var(txn.modsec.code) -m int gt 0 }
+
+        unique-id-format %{+X}o\ %ci:%cp_%fi:%fp_%Ts_%rt:%pid
+        unique-id-header X-Unique-ID
+        log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[unique-id]"
+        # 추가 끝
+
+        default_backend web_a
 
 # 추가
 backend spoe-modsecurity
-    mode tcp
-    balance roundrobin
-    timeout connect 5s
-    timeout server 3m
-    server modsec1 127.0.0.1:12345
+        mode tcp
+        balance roundrobin
+        timeout connect 5s
+        timeout server 3m
+        server modsec1 127.0.0.1:12345
 # 추가 끝
 
 backend web_a
-    mode http
-    server web1 172.16.3.1:80 check
+        mode http
+        server web1 172.16.3.1:80 check
 ```
 
 ```bash
+# Syntax 체크
+/usr/local/haproxy/sbin/haproxy -c -f /usr/local/haproxy/etc/haproxy.cfg
+
 systemctl restart haproxy
 systemctl status haproxy
 ```
@@ -392,11 +413,16 @@ systemctl status haproxy
 ```bash
 curl -I "http://a-site.com/?cmd=/bin/pkexec"
 
-tail -n 1 /var/log/modsec_audit.log
+tail -f /var/log/modsec_audit.log
 ```
 
-CRS 감지완료
-<img src="/assets/img/posts/server/on-premise/app/haproxy/how-to-assoc-haproxy-modsecurity/haproxy-modsecurity-test.png" width="100%" alt="haproxy-modsecurity-test">
+공격성url 탐지 완료
+```text
+---dCPvbvYo---H--
+ModSecurity: Warning. Matched "Operator `Rx' with parameter `(?i)(?:^|b[\"'\)\[-\x5c]*(?:(?:(?:\|\||&&)[\s\v]*)?\$[!#\(\*\-0-9\?-@_a-\{]*)?\x5c?u[\"'\)\[-\x5c]*(?:(?:(?:\|\||&&)[\s\v]*)?\$[!#\(\*\-0-9\?-@_a-\{]*)?\x5c?s[\"'\)\[-\x5c]*(?:(?:(?:\|\||&&)[\s\v]*)?\ (4111 characters omitted)' against variable `ARGS:cmd' (Value: `/bin/sh/pkexec' ) [file "/usr/local/crs4/rules/REQUEST-932-APPLICATION-ATTACK-RCE.conf"] [line "478"] [id "932260"] [rev ""] [msg "Remote Command Execution: Direct Unix Command Execution"] [data "Matched Data: /bin/sh/pkexec found within ARGS:cmd: /bin/sh/pkexec"] [severity "2"] [ver "OWASP_CRS/4.0.0"] [maturity "0"] [accuracy "0"] [tag "application-multi"] [tag "language-shell"] [tag "platform-unix"] [tag "attack-rce"] [tag "paranoia-level/1"] [tag "OWASP_CRS"] [tag "capec/1000/152/248/88"] [tag "PCI/6.5.2"] [hostname "172.16.9.255"] [uri "http://a-site.com/"] [unique_id "AC100001:D2B3_AC1009FF:0050_694D3155_0008:BE2C"] [ref "o0,14v27,14"]
+ModSecurity: Warning. Matched "Operator `PmFromFile' with parameter `unix-shell.data' against variable `ARGS:cmd' (Value: `/bin/sh/pkexec' ) [file "/usr/local/crs4/rules/REQUEST-932-APPLICATION-ATTACK-RCE.conf"] [line "556"] [id "932160"] [rev ""] [msg "Remote Command Execution: Unix Shell Code Found"] [data "Matched Data: bin/sh found within ARGS:cmd: /bin/sh/pkexec"] [severity "2"] [ver "OWASP_CRS/4.0.0"] [maturity "0"] [accuracy "0"] [tag "application-multi"] [tag "language-shell"] [tag "platform-unix"] [tag "attack-rce"] [tag "paranoia-level/1"] [tag "OWASP_CRS"] [tag "capec/1000/152/248/88"] [tag "PCI/6.5.2"] [hostname "172.16.9.255"] [uri "http://a-site.com/"] [unique_id "AC100001:D2B3_AC1009FF:0050_694D3155_0008:BE2C"] [ref "o1,6v27,14t:cmdLine,t:normalizePath"]
+ModSecurity: Warning. Matched "Operator `Ge' with parameter `5' against variable `TX:BLOCKING_INBOUND_ANOMALY_SCORE' (Value: `10' ) [file "/usr/local/crs4/rules/REQUEST-949-BLOCKING-EVALUATION.conf"] [line "176"] [id "949110"] [rev ""] [msg "Inbound Anomaly Score Exceeded (Total Score: 10)"] [data ""] [severity "0"] [ver "OWASP_CRS/4.0.0"] [maturity "0"] [accuracy "0"] [tag "anomaly-evaluation"] [hostname "172.16.9.255"] [uri "http://a-site.com/"] [unique_id "AC100001:D2B3_AC1009FF:0050_694D3155_0008:BE2C"] [ref ""]
+```
 
 ## 참조
 haproxy spoe - <https://www.haproxy.com/blog/extending-haproxy-with-the-stream-processing-offload-engine>{:target="_blank"}  
