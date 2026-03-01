@@ -70,4 +70,4 @@ SNAT 규칙은 **POSTROUTING** 체인에 적용됩니다.
 
 ## 참고 자료
 * Netfilter Packet 처리 설명(Wikipedia) <https://en.wikipedia.org/wiki/Netfilter>{:target="_blank"}
-* Netfilter Hook 설명(nftables Wiki) <https://wiki.nftables.org/wiki-nftables/index.php/Netfilter_Hooks>{:target="_blank"}
+* Netfilter Hook 설명(nftables Wiki) <https://wiki.nftables.org/wiki-nftables/index.php/Netfilter_hooks>{:target="_blank"}
