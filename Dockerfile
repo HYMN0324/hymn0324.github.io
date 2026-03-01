@@ -5,7 +5,7 @@ EXPOSE 35729
 
 WORKDIR /usr/src/app
 
-COPY Gemfile Gemfile.lock jekyll-theme-chirpy.gemspec .
+COPY Gemfile Gemfile.lock jekyll-theme-chirpy.gemspec ./
 RUN bundle install
 
 CMD ["bundle", "exec", "jekyll", "serve", "--host", "0.0.0.0", "--livereload"]
